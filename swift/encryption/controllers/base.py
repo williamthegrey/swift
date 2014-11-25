@@ -8,6 +8,40 @@ from swift.encryption.api import swift_api
 from django.utils.encoding import force_unicode
 from django.utils.translation import ugettext_lazy as _
 from horizon import exceptions
+from swift.encryption.utils.encryptionutils import encrypt, decrypt
+import functools
+
+key = '0123456789abcdef0123456789abcdef'
+
+
+def encrypted(func):
+    """
+    Decorator to encrypt a request body for a controller method
+
+    :param func: a controller method to encrypt a request body for
+    """
+
+    @functools.wraps(func)
+    def wrapped(*a, **kw):
+        req = a[1]
+        req.body = encrypt(key, req.body)
+        return func(*a, **kw)
+    return wrapped
+
+
+def decrypted(func):
+    """
+    Decorator to decrypt a response body for a controller method
+
+    :param func: a controller method to decrypt a response body for
+    """
+
+    @functools.wraps(func)
+    def wrapped(*a, **kw):
+        res = func(*a, **kw)
+        res.body = decrypt(key, res.body)
+        return res
+    return wrapped
 
 
 class Controller(object):
@@ -43,6 +77,7 @@ class Controller(object):
         return self._allowed_methods
 
     @public
+    @decrypted
     def GET(self, req):
         """
         Handler for HTTP GET requests.
@@ -73,23 +108,29 @@ class Controller(object):
         pass
 
     def GETorHEAD(self, req):
+        try:
+            obj = swift_api.swift_get_object(req, self.container_name, self.object_name)
+            msg = _("Object was successfully downloaded.")
+            #messages.success(request, msg)
+        except Exception as e:
+            exceptions.handle(req, _("Unable to download object."))
+
         res = Response(request=req)
-        res.body = "Hello!\n"
-        res.body += req.body
-        res.body += "\n"
+        res.etag = obj.get('_apidict', None)['etag']
+        res.body = obj.data
 
         return res
 
     @public
+    @encrypted
     def PUT(self, req):
         """HTTP PUT request handler."""
 
-        object_file = req.body
         try:
             obj = swift_api.swift_upload_object(req,
                                                 self.container_name,
                                                 self.object_name,
-                                                object_file)
+                                                req.body)
             msg = _("Object was successfully uploaded.")
             #messages.success(request, msg)
         except Exception as e:
