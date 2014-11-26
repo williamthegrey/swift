@@ -7,7 +7,7 @@ from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
     HTTPServerError, HTTPException, Request
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
-from swift.encryption.controllers import Controller
+from swift.encryption.controllers import ObjectController
 
 
 class Application(object):
@@ -175,7 +175,13 @@ class Application(object):
                  account_name=account,
                  container_name=container,
                  object_name=obj)
-        return Controller, d
+        if obj and container and account:
+            return ObjectController, d
+        elif container and account:
+            return ObjectController, d
+        elif account and not container and not obj:
+            return ObjectController, d
+        return None, d
 
 
 def app_factory(global_conf, **local_conf):
