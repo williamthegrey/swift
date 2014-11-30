@@ -1,9 +1,9 @@
 __author__ = 'William'
 
 from swift.encryption.controllers.base import Controller
-from swift.encryption.controllers.obj import ObjectController
+from swift.encryption.controllers.proxy import ProxyController
 
 __all__ = [
     'Controller',
-    'ObjectController'
+    'ProxyController'
 ]

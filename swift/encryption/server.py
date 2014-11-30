@@ -1,13 +1,14 @@
 __author__ = 'William'
 
 from eventlet import Timeout
+from time import time
 from swift import gettext_ as _
 from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
     HTTPMethodNotAllowed, HTTPNotFound, HTTPPreconditionFailed, \
     HTTPServerError, HTTPException, Request
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
-from swift.encryption.controllers import ObjectController
+from swift.encryption.controllers import ProxyController
 
 
 class Application(object):
@@ -23,6 +24,12 @@ class Application(object):
 
         swift_dir = conf.get('swift_dir', '/etc/swift')
         self.swift_dir = swift_dir
+
+        self.proxy_timeout = int(conf.get('proxy_timeout', 10))
+        self.recoverable_proxy_timeout = int(
+            conf.get('recoverable_proxy_timeout', self.proxy_timeout))
+        self.conn_timeout = float(conf.get('conn_timeout', 0.5))
+        self.client_timeout = int(conf.get('client_timeout', 60))
 
         self.deny_host_headers = [
             host.strip() for host in
@@ -157,7 +164,7 @@ class Application(object):
             return handler(req)
         except HTTPException as error_response:
             return error_response
-        except (Exception, Timeout):
+        except (Exception, Timeout) as e:
             self.logger.exception(_('ERROR Unhandled exception in request'))
             return HTTPServerError(request=req)
 
@@ -175,13 +182,35 @@ class Application(object):
                  account_name=account,
                  container_name=container,
                  object_name=obj)
-        if obj and container and account:
-            return ObjectController, d
-        elif container and account:
-            return ObjectController, d
-        elif account and not container and not obj:
-            return ObjectController, d
-        return None, d
+
+        return ProxyController, d
+
+    def error_occurred(self, proxy, msg):
+        """
+        Handle logging, and handling of errors.
+
+        :param proxy: dictionary of proxy to handle errors for
+        :param msg: error message
+        """
+        proxy['errors'] = proxy.get('errors', 0) + 1
+        proxy['last_error'] = time()
+        self.logger.error(_('%(msg)s %(ip)s:%(port)s'),
+                          {'msg': msg, 'ip': proxy['ip'],
+                          'port': proxy['port']})
+
+    def exception_occurred(self, proxy, typ, additional_info):
+        """
+        Handle logging of generic exceptions.
+
+        :param proxy: dictionary of proxy to log the error for
+        :param typ: server type
+        :param additional_info: additional information to log
+        """
+        self.logger.exception(
+            _('ERROR with %(type)s server %(ip)s:%(port)s re: '
+              '%(info)s'),
+            {'type': typ, 'ip': proxy['ip'], 'port': proxy['port'],
+             'info': additional_info})
 
 
 def app_factory(global_conf, **local_conf):

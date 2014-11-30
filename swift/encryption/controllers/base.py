@@ -10,6 +10,7 @@ from horizon import exceptions
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 import functools
 
+
 key = '0123456789abcdef0123456789abcdef'
 
 
@@ -59,6 +60,23 @@ def decrypted(func):
     return wrapped
 
 
+def update_headers(response, headers):
+    """
+    Helper function to update headers in the response.
+
+    :param response: swob.Response object
+    :param headers: dictionary headers
+    """
+    if hasattr(headers, 'items'):
+        headers = headers.items()
+    for name, value in headers:
+        if name == 'etag':
+            response.headers[name] = value.replace('"', '')
+        elif name not in ('date', 'content-length', 'content-type',
+                          'connection', 'x-put-timestamp', 'x-delete-after'):
+            response.headers[name] = value
+
+
 class Controller(object):
     """Base WSGI controller class for the encryption server"""
     server_type = 'Base'
@@ -86,33 +104,3 @@ class Controller(object):
                 if getattr(m, 'publicly_accessible', False):
                     self._allowed_methods.add(name)
         return self._allowed_methods
-
-    @public
-    def GET(self, req):
-        """
-        Handler for HTTP GET requests.
-
-        :param req: The client request
-        :returns: the response to the client
-        """
-        return self.GETorHEAD(req)
-
-    @public
-    def HEAD(self, req):
-        """
-        Handler for HTTP HEAD requests.
-
-        :param req: The client request
-        :returns: the response to the client
-        """
-        return self.GETorHEAD(req)
-
-    @public
-    def OPTIONS(self, req):
-        """
-        Base handler for OPTIONS requests
-
-        :param req: swob.Request object
-        :returns: swob.Response object
-        """
-        pass
