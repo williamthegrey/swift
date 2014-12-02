@@ -31,7 +31,6 @@ from swift.encryption.controllers.base import Controller, delay_denial, \
     encrypted, decrypted
 from swift import gettext_ as _
 from swift.encryption.api import swift_api
-from horizon import exceptions
 from swift.common.bufferedhttp import http_connect_raw
 from eventlet.timeout import Timeout
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT

@@ -19,15 +19,8 @@
 #    under the License.
 
 import logging
-
-#import six.moves.urllib.parse as urlparse
 from urllib import unquote, quote
 import swiftclient
-
-#from django.utils.translation import ugettext_lazy as _
-
-from horizon import exceptions
-
 from swift.encryption.api import base_api
 from swift.encryption.utils import timeutils
 
@@ -185,7 +178,7 @@ def swift_get_container(request, container_name, with_data=True):
 
 def swift_create_container(request, name, metadata=({})):
     if swift_container_exists(request, name):
-        raise exceptions.AlreadyExists(name, 'container')
+        LOG.exception('container already exists')
     headers = _metadata_to_header(metadata)
     swift_api(request).put_container(name, headers=headers)
     return Container({'name': name})
@@ -204,9 +197,7 @@ def swift_delete_container(request, name):
     if objects:
         error_msg = unicode("The container cannot be deleted "
                             "since it's not empty.")
-        exc = exceptions.Conflict(error_msg)
-        exc._safe_message = error_msg
-        raise exc
+        LOG.exception(error_msg)
     swift_api(request).delete_container(name)
     return True
 
@@ -267,7 +258,7 @@ def wildcard_search(string, q):
 def swift_copy_object(request, orig_container_name, orig_object_name,
                       new_container_name, new_object_name):
     if swift_object_exists(request, new_container_name, new_object_name):
-        raise exceptions.AlreadyExists(new_object_name, 'object')
+        LOG.exception('object already exists')
 
     headers = {"X-Copy-From": FOLDER_DELIMITER.join([orig_container_name,
                                                      orig_object_name])}

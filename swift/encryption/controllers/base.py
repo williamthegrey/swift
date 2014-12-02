@@ -4,9 +4,7 @@ from urllib import unquote, quote
 import inspect
 from swift.common.utils import public
 from swift.common.swob import Response
-from swift.encryption.api import swift_api
 from swift import gettext_ as _
-from horizon import exceptions
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 import functools
 
