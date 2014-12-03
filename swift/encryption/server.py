@@ -37,14 +37,24 @@ class Application(object):
         self.trans_id_suffix = conf.get('trans_id_suffix', '')
 
         try:
-            self.swift_url = conf.get('swift_url', None)
+            self.proxy_host = conf.get('proxy_host', None)
         except KeyError:
-            self.logger.exception('Cannot get swift_url from %s' % conf.get('__file__', None))
+            self.logger.exception('Cannot get proxy_host from %s' % conf.get('__file__', None))
 
         try:
-            self.km_url = conf.get('km_url', None)
+            self.proxy_port = conf.get('proxy_port', None)
         except KeyError:
-            self.logger.exception('Cannot get km_url from %s' % conf.get('__file__', None))
+            self.logger.exception('Cannot get proxy_port from %s' % conf.get('__file__', None))
+
+        try:
+            self.kms_host = conf.get('kms_host', None)
+        except KeyError:
+            self.logger.exception('Cannot get kms_host from %s' % conf.get('__file__', None))
+
+        try:
+            self.kms_port = conf.get('kms_port', None)
+        except KeyError:
+            self.logger.exception('Cannot get kms_port from %s' % conf.get('__file__', None))
 
         self.openstack_ssl_cacert = conf.get('openstack_ssl_cacert', None)
         self.api_result_limit = conf.get('api_result_limit', None)
@@ -156,8 +166,10 @@ class Application(object):
             # method the client actually sent.
             req.environ['swift.orig_req_method'] = req.method
 
-            req.environ['swift_url'] = self.swift_url + '/' + path_parts['version'] + '/' + path_parts['account_name']
-            req.environ['km_url'] = self.km_url
+            req.environ['proxy_host'] = self.proxy_host
+            req.environ['proxy_port'] = self.proxy_port
+            #req.environ['kms_host'] = self.kms_host
+            #req.environ['kms_port'] = self.kms_port
             req.environ['openstack_ssl_cacert'] = self.openstack_ssl_cacert
             req.environ['api_result_limit'] = self.api_result_limit
 

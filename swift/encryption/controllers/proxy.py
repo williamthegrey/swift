@@ -48,22 +48,38 @@ def redirected(func):
     @functools.wraps(func)
     def wrapped(*a, **kw):
         req = a[1]
+        remote_addr = req.environ['REMOTE_ADDR']
+        remote_port = req.environ['REMOTE_PORT']
+        http_host = req.environ['HTTP_HOST']
+        server_name = req.environ['SERVER_NAME']
+        server_port = req.environ['SERVER_PORT']
+
+        proxy_host = req.environ['proxy_host']
+        del req.environ['proxy_host']
+        proxy_port = req.environ['proxy_port']
+        del req.environ['proxy_port']
+
+        # change remote
+        req.environ['REMOTE_ADDR'] = server_name
+        #req.environ['REMOTE_PORT'] = None
+
+        # change server
+        req.environ['HTTP_HOST'] = proxy_host + ":" + proxy_port
+        req.environ['SERVER_NAME'] = proxy_host
+        req.environ['SERVER_PORT'] = proxy_port
+
+        # call controller
+        res = func(*a, **kw)
 
         # reset remote
-        #req.environ['REMOTE_ADDR'] = '192.168.1.19'
-        #req.environ['REMOTE_PORT'] = None
-        #req.remote_addr = '192.168.1.19'
+        res.environ['REMOTE_ADDR'] = remote_addr
+        #req.environ['REMOTE_PORT'] = remote_port
 
         # reset server
-        req.environ['HTTP_HOST'] = '192.168.1.19:8080'
-        req.environ['SERVER_NAME'] = '192.168.1.19'
-        req.environ['SERVER_PORT'] = '8080'
-        #req.environ['swift_url'] = 'http://192.168.1.19:8080/v1/AUTH_52626c5cdfee447e9533bcf1de91fafd'
-        #req.host = '192.168.1.19:8080'
-        #req.host_url = 'http://192.168.1.19:8080'
-        #req.url = 'http://192.168.1.19:8080/v1/AUTH_52626c5cdfee447e9533bcf1de91fafd/doc/assassin.txt'
+        req.environ['HTTP_HOST'] = http_host
+        req.environ['SERVER_NAME'] = server_name
+        req.environ['SERVER_PORT'] = server_port
 
-        res = func(*a, **kw)
         return res
     return wrapped
 

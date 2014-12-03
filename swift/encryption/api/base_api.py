@@ -230,7 +230,7 @@ def url_for(request, service_type):
     if service_type == 'object-store':
         url = request.environ['swift_url']
     elif service_type == 'key-management':
-        url = request.environ['km_url']
+        url = request.environ['kms_url']
     else:
         url = None
 
