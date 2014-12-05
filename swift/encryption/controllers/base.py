@@ -1,12 +1,17 @@
 __author__ = 'William'
 
-from urllib import unquote, quote
 import inspect
 from swift.common.utils import public
 from swift.common.swob import Response
 from swift import gettext_ as _
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
+from swift.common.utils import split_path, config_true_value
+from swift.common.bufferedhttp import http_connect_raw
+from eventlet.timeout import Timeout
+from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
+from swift.common.exceptions import ConnectionTimeout
 import functools
+from base64 import b64encode, b64decode
 
 
 key = '0123456789abcdef0123456789abcdef'
@@ -28,32 +33,85 @@ def delay_denial(func):
     return wrapped
 
 
-def encrypted(func):
+def redirected(func):
     """
-    Decorator to encrypt a request body for a controller method
+    Decorator to redirect a request and its response for a controller method
 
-    :param func: a controller method to encrypt a request body for
+    :param func: a controller method to redirect requests and responses for
     """
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
         req = a[1]
-        req.body = encrypt(key, req.body)
-        return func(*a, **kw)
+        remote_addr = req.environ['REMOTE_ADDR']
+        remote_port = req.environ['REMOTE_PORT']
+        http_host = req.environ['HTTP_HOST']
+        server_name = req.environ['SERVER_NAME']
+        server_port = req.environ['SERVER_PORT']
+
+        proxy_host = req.environ['proxy_host']
+        del req.environ['proxy_host']
+        proxy_port = req.environ['proxy_port']
+        del req.environ['proxy_port']
+
+        # change remote
+        req.environ['REMOTE_ADDR'] = server_name
+        #req.environ['REMOTE_PORT'] = None
+
+        # change server
+        req.environ['HTTP_HOST'] = proxy_host + ":" + proxy_port
+        req.environ['SERVER_NAME'] = proxy_host
+        req.environ['SERVER_PORT'] = proxy_port
+
+        # call controller
+        res = func(*a, **kw)
+
+        # reset remote
+        res.environ['REMOTE_ADDR'] = remote_addr
+        #req.environ['REMOTE_PORT'] = remote_port
+
+        # reset server
+        req.environ['HTTP_HOST'] = http_host
+        req.environ['SERVER_NAME'] = server_name
+        req.environ['SERVER_PORT'] = server_port
+
+        return res
     return wrapped
 
 
-def decrypted(func):
+def path_encrypted(func):
     """
-    Decorator to decrypt a response body for a controller method
+    Decorator to encrypt the path for a controller method
 
-    :param func: a controller method to decrypt a response body for
+    :param func: a controller method to encrypt the path for
     """
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        req = a[1]
+        path_info = req.path
+
+        # get encrypted path
+        version, account, container, obj = split_path(path_info, 1, 4, True)
+        path_info_encrypted = "/" + version + "/" + account
+        if container:
+            container = b64encode(encrypt(key, container))
+            path_info_encrypted += "/" + container
+        if obj:
+            obj = b64encode(encrypt(key, obj))
+            path_info_encrypted += "/" + obj
+
+        # set path
+        req.environ['PATH_INFO'] = path_info_encrypted
+        req.environ['RAW_PATH_INFO'] = path_info_encrypted
+
+        # call controller
         res = func(*a, **kw)
-        res.body = decrypt(key, res.body)
+
+        # reset path
+        res.environ['PATH_INFO'] = path_info
+        res.environ['RAW_PATH_INFO'] = path_info
+
         return res
     return wrapped
 
@@ -102,3 +160,59 @@ class Controller(object):
                 if getattr(m, 'publicly_accessible', False):
                     self._allowed_methods.add(name)
         return self._allowed_methods
+
+    def get_working_response(self, req):
+        source = self._get_source(req)
+        res = None
+        if source:
+            res = Response(request=req)
+            res.body = source.read()
+            source.nuke_from_orbit()
+
+            if req.method == 'GET' and \
+                    source.status in (HTTP_OK, HTTP_PARTIAL_CONTENT):
+                # See NOTE: swift_conn at top of file about this.
+                res.swift_conn = source.swift_conn
+            res.status = source.status
+            update_headers(res, source.getheaders())
+            if not res.environ:
+                res.environ = {}
+            res.environ['swift_x_timestamp'] = \
+                source.getheader('x-timestamp')
+            res.accept_ranges = 'bytes'
+            res.content_length = source.getheader('Content-Length')
+            if source.getheader('Content-Type'):
+                res.charset = None
+                res.content_type = source.getheader('Content-Type')
+
+        return res
+
+    def _get_source(self, req):
+        proxy_timeout = self.app.proxy_timeout
+        newest = config_true_value(req.headers.get('x-newest', 'f'))
+        if self.server_type == 'Object' and not newest:
+            proxy_timeout = self.app.recoverable_proxy_timeout
+
+        server = {'ip': req.environ['SERVER_NAME'], 'port': req.environ['SERVER_PORT']}
+
+        try:
+            with ConnectionTimeout(self.app.conn_timeout):
+                conn = http_connect_raw(
+                    server['ip'], server['port'], req.method,
+                    req.path, req.headers, req.query_string)
+
+            with Timeout(proxy_timeout):
+                conn.send(req.body)
+                possible_source = conn.getresponse()
+                # See NOTE: swift_conn at top of file about this.
+                possible_source.swift_conn = conn
+        except (Exception, Timeout) as e:
+            self.app.exception_occurred(
+                server, self.server_type,
+                _('Trying to %(method)s %(path)s') %
+                {'method': req.method, 'path': req.path})
+
+        # TODO: best response
+        source = possible_source
+
+        return source

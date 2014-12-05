@@ -8,7 +8,7 @@ from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
     HTTPServerError, HTTPException, Request
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
-from swift.encryption.controllers import ProxyController
+from swift.encryption.controllers import AccountController, ContainerController, ObjectController
 
 
 class Application(object):
@@ -195,7 +195,13 @@ class Application(object):
                  container_name=container,
                  object_name=obj)
 
-        return ProxyController, d
+        if obj and container and account:
+            return ObjectController, d
+        elif container and account:
+            return ContainerController, d
+        elif account and not container and not obj:
+            return AccountController, d
+        return None, d
 
     def error_occurred(self, proxy, msg):
         """
