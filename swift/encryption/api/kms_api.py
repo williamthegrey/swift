@@ -28,9 +28,14 @@ class Connection:
             key_id_return = res.environ['HTTP_X_KMS_KEY_ID']
             key = res.body
 
-        if not (key_id_return and len(key_id_return) == 32):
+        # TODO: hard code
+        #key_id_return = '0123456789abcdef0123456789abcdef'
+        #key = '1a3b1ff07e4c40d516c6521b19498c4f'
+        # hard code ends
+
+        if len(key_id_return) != 32:
             raise ValueError('Invalid key_id')
-        if not (key and len(key) == 32):
+        if len(key) != 32:
             raise ValueError('Invalid key')
 
         return key_id_return, key
