@@ -42,6 +42,11 @@ def redirected(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        controller = a[0]
+        app = controller.app
+        proxy_host = app.proxy_host
+        proxy_port = app.proxy_port
+
         req = a[1]
         remote_addr = req.environ['REMOTE_ADDR']
         remote_port = req.environ['REMOTE_PORT']
@@ -49,14 +54,8 @@ def redirected(func):
         server_name = req.environ['SERVER_NAME']
         server_port = req.environ['SERVER_PORT']
 
-        proxy_host = req.environ['proxy_host']
-        del req.environ['proxy_host']
-        proxy_port = req.environ['proxy_port']
-        del req.environ['proxy_port']
-
         # change remote
         req.environ['REMOTE_ADDR'] = server_name
-        #req.environ['REMOTE_PORT'] = None
 
         # change server
         req.environ['HTTP_HOST'] = proxy_host + ":" + proxy_port
@@ -68,7 +67,7 @@ def redirected(func):
 
         # reset remote
         res.environ['REMOTE_ADDR'] = remote_addr
-        #req.environ['REMOTE_PORT'] = remote_port
+        req.environ['REMOTE_PORT'] = remote_port
 
         # reset server
         req.environ['HTTP_HOST'] = http_host

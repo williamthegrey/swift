@@ -168,13 +168,6 @@ class Application(object):
             # method the client actually sent.
             req.environ['swift.orig_req_method'] = req.method
 
-            req.environ['proxy_host'] = self.proxy_host
-            req.environ['proxy_port'] = self.proxy_port
-            req.environ['kms_host'] = self.kms_host
-            req.environ['kms_port'] = self.kms_port
-            req.environ['openstack_ssl_cacert'] = self.openstack_ssl_cacert
-            req.environ['api_result_limit'] = self.api_result_limit
-
             return handler(req)
         except HTTPException as error_response:
             return error_response
