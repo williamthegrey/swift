@@ -9,9 +9,8 @@ from swift.encryption.api import swift_api
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 from base64 import b64encode, b64decode
 import functools
-
-
-key = '0123456789abcdef0123456789abcdef'
+from swift.encryption.api.kms_api import kms_api
+from swift.common.utils import split_path
 
 
 def obj_body_encrypted(func):
@@ -23,8 +22,22 @@ def obj_body_encrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        controller = a[0]
+        app = controller.app
+        kms_host = app.kms_host
+        kms_port = app.kms_port
+        kms_timeout = app.kms_timeout
+        conn_timeout = app.conn_timeout
+
         req = a[1]
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        version, account, container, obj = split_path(unquote(req.path), 4, 4, True)
+        path = '/' + '/'.join([version, account, container])
+        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(path, token)
+
         req.body = encrypt(key, req.body)
+        req.body = key_id + req.body
+
         return func(*a, **kw)
     return wrapped
 
@@ -39,6 +52,22 @@ def obj_body_decrypted(func):
     @functools.wraps(func)
     def wrapped(*a, **kw):
         res = func(*a, **kw)
+
+        app = a[0].app
+        kms_host = app.kms_host
+        kms_port = app.kms_port
+        kms_timeout = app.kms_timeout
+        conn_timeout = app.conn_timeout
+
+        token = res.environ['HTTP_X_AUTH_TOKEN']
+
+        req = a[1]
+        version, account, container, obj = split_path(unquote(req.path), 4, 4, True)
+        path = '/' + '/'.join([version, account, container])
+        key_id = res.body[0:32]
+        res.body = res.body[32:]
+        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(path, token, key_id=key_id)
+
         res.body = decrypt(key, res.body)
         return res
     return wrapped
@@ -50,6 +79,9 @@ def destination_encrypted(func):
 
     :param func: an object controller method to encrypt the copy destination for
     """
+    # TODO: hard code
+    key = '0123456789abcdef0123456789abcdef'
+    # hard code ends
 
     @functools.wraps(func)
     def wrapped(*a, **kw):

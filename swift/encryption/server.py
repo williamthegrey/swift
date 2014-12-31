@@ -28,6 +28,8 @@ class Application(object):
         self.proxy_timeout = int(conf.get('proxy_timeout', 10))
         self.recoverable_proxy_timeout = int(
             conf.get('recoverable_proxy_timeout', self.proxy_timeout))
+        self.kms_timeout = int(conf.get('kms_timeout', 5))
+        self.auth_timout = int(conf.get('auth_timeout', 5))
         self.conn_timeout = float(conf.get('conn_timeout', 0.5))
         self.client_timeout = int(conf.get('client_timeout', 60))
 
@@ -168,8 +170,8 @@ class Application(object):
 
             req.environ['proxy_host'] = self.proxy_host
             req.environ['proxy_port'] = self.proxy_port
-            #req.environ['kms_host'] = self.kms_host
-            #req.environ['kms_port'] = self.kms_port
+            req.environ['kms_host'] = self.kms_host
+            req.environ['kms_port'] = self.kms_port
             req.environ['openstack_ssl_cacert'] = self.openstack_ssl_cacert
             req.environ['api_result_limit'] = self.api_result_limit
 
