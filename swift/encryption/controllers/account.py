@@ -10,9 +10,9 @@ from swift.encryption.utils.encryptionutils import encrypt, decrypt
 from base64 import b64encode, b64decode
 import functools
 
-
+# TODO: hard code
 key = '0123456789abcdef0123456789abcdef'
-
+# hard code ends
 
 def account_body_decrypted(func):
     """
