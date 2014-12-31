@@ -11,7 +11,11 @@ def encrypt(key, in_str):
     chunk_size = 64 * 1024
     out_str = ""
     #iv = ''.join(chr(random.randint(0, 0xFF)) for i in range(16))
+
+    # TODO: hard code
     iv = '0123456789abcdef'
+    # hard code ends
+
     encryptor = AES.new(key, AES.MODE_CBC, iv)
     extra_space = 16 - len(in_str) % 16
     if extra_space < 10:
