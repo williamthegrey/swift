@@ -1,6 +1,7 @@
 __author__ = 'William'
 
 import inspect
+from urllib import unquote, quote
 from swift.common.utils import public
 from swift.common.swob import Response
 from swift import gettext_ as _
@@ -12,10 +13,8 @@ from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 from swift.common.exceptions import ConnectionTimeout
 import functools
 from base64 import b64encode, b64decode
+from swift.encryption.api.kms_api import kms_api
 
-# TODO: hard code
-key = '0123456789abcdef0123456789abcdef'
-# hard code ends
 
 def delay_denial(func):
     """
@@ -87,11 +86,21 @@ def path_encrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        app = a[0].app
+        kms_host = app.kms_host
+        kms_port = app.kms_port
+        kms_timeout = app.kms_timeout
+        conn_timeout = app.conn_timeout
+
         req = a[1]
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+
         path_info = req.path
+        version, account, container, obj = split_path(unquote(path_info), 1, 4, True)
+        key_path = '/' + '/'.join([version, account])
+        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
 
         # get encrypted path
-        version, account, container, obj = split_path(path_info, 1, 4, True)
         path_info_encrypted = "/" + version + "/" + account
         if container:
             container = b64encode(encrypt(key, container))

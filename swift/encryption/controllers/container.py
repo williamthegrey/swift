@@ -9,10 +9,9 @@ from swift.encryption.api import swift_api
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 from base64 import b64encode, b64decode
 import functools
+from swift.common.utils import split_path
+from swift.encryption.api.kms_api import kms_api
 
-# TODO: hard code
-key = '0123456789abcdef0123456789abcdef'
-# hard code ends
 
 def container_body_decrypted(func):
     """
@@ -25,6 +24,20 @@ def container_body_decrypted(func):
     def wrapped(*a, **kw):
         # TODO: support json format
         res = func(*a, **kw)
+
+        app = a[0].app
+        kms_host = app.kms_host
+        kms_port = app.kms_port
+        kms_timeout = app.kms_timeout
+        conn_timeout = app.conn_timeout
+
+        token = res.environ['HTTP_X_AUTH_TOKEN']
+        path_info = res.request.path
+        version, account, container = split_path(unquote(path_info), 3, 3, True)
+        key_path = '/' + '/'.join([version, account])
+
+        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
+
         objects = res.body.splitlines()
         body_decrypted = ""
         for obj in objects:

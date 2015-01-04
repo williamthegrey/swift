@@ -79,13 +79,22 @@ def destination_encrypted(func):
 
     :param func: an object controller method to encrypt the copy destination for
     """
-    # TODO: hard code
-    key = '0123456789abcdef0123456789abcdef'
-    # hard code ends
-
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        app = a[0].app
+        kms_host = app.kms_host
+        kms_port = app.kms_port
+        kms_timeout = app.kms_timeout
+        conn_timeout = app.conn_timeout
+
         req = a[1]
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        path_info = req.path
+        version, account, container, obj = split_path(unquote(path_info), 4, 4, True)
+        key_path = '/' + '/'.join([version, account])
+
+        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
+
         destination_path = req.environ['HTTP_DESTINATION']
 
         # get encrypted destination path
