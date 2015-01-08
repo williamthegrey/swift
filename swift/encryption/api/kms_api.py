@@ -28,9 +28,9 @@ class Connection:
             key_id_return = res.headers['X-Kms-Key-Id']
             key = res.body
 
-        if len(key_id_return) != 32:
+        if not key_id_return or len(key_id_return) != 32:
             raise ValueError('Invalid key_id')
-        if len(key) != 32:
+        if not key or len(key) != 32:
             raise ValueError('Invalid key')
 
         return key_id_return, key
