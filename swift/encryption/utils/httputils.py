@@ -2,9 +2,8 @@ __author__ = 'William'
 from swift.common.bufferedhttp import http_connect_raw
 from eventlet.timeout import Timeout
 from swift.common.exceptions import ConnectionTimeout
-from swift.common.swob import Request, Response
+from swift.common.swob import Response
 import logging
-from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 
 
 def get_working_response(req, conn_timeout, res_timeout):
