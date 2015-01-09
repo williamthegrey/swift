@@ -7,7 +7,7 @@ from swift.encryption.controllers.base import Controller, delay_denial, \
 from swift import gettext_ as _
 from swift.encryption.api import swift_api
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
-from base64 import b64encode, b64decode
+from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
 import functools
 from swift.common.utils import split_path
 from swift.encryption.api.kms_api import kms_api
