@@ -19,17 +19,9 @@ def get_working_response(req, conn_timeout, res_timeout):
         update_headers(res, source.getheaders())
         if not res.environ:
             res.environ = {}
-        res.environ['swift_x_timestamp'] = \
-            source.getheader('x-timestamp')
-        res.accept_ranges = 'bytes'
-        res.content_length = source.getheader('Content-Length')
         if source.getheader('Content-Type'):
             res.charset = None
             res.content_type = source.getheader('Content-Type')
-
-        res.status = source.status
-        if not res.environ:
-            res.environ = {}
 
     return res
 
@@ -66,8 +58,5 @@ def update_headers(response, headers):
     if hasattr(headers, 'items'):
         headers = headers.items()
     for name, value in headers:
-        if name == 'etag':
-            response.headers[name] = value.replace('"', '')
-        elif name not in ('date', 'content-length', 'content-type',
-                          'connection', 'x-put-timestamp', 'x-delete-after'):
+        if name not in ('date', 'content-length', 'content-type'):
             response.headers[name] = value
