@@ -1,19 +1,12 @@
 __author__ = 'William'
 
 import inspect
-from urllib import unquote, quote
-from swift.common.utils import public
-from swift.common.swob import Response
-from swift import gettext_ as _
-from swift.encryption.utils.encryptionutils import encrypt, decrypt
-from swift.common.utils import split_path, config_true_value
-from swift.common.bufferedhttp import http_connect_raw
-from eventlet.timeout import Timeout
-from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
-from swift.common.exceptions import ConnectionTimeout
+from urllib import unquote
+from swift.encryption.utils.encryptionutils import encrypt
+from swift.common.utils import split_path
 from swift.encryption.utils.httputils import get_working_response
 import functools
-from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
+from base64 import urlsafe_b64encode as b64encode
 from swift.encryption.api.kms_api import kms_api
 
 

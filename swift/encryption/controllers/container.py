@@ -1,15 +1,12 @@
 __author__ = 'William'
 
-from urllib import unquote, quote
-from swift.common.utils import public, config_true_value
+from urllib import unquote
+from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
     redirected, path_encrypted
-from swift import gettext_ as _
-from swift.encryption.utils.encryptionutils import encrypt, decrypt
-from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
+from swift.encryption.utils.encryptionutils import decrypt
+from base64 import urlsafe_b64decode as b64decode
 import functools
-from swift.common.utils import split_path
-from swift.encryption.api.kms_api import kms_api
 
 
 def container_body_decrypted(func):
