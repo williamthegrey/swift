@@ -22,22 +22,16 @@ def obj_body_encrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
-        controller = a[0]
-        app = controller.app
-        kms_host = app.kms_host
-        kms_port = app.kms_port
-        kms_timeout = app.kms_timeout
-        conn_timeout = app.conn_timeout
+        (controller, req) = a
 
-        req = a[1]
-        token = req.environ['HTTP_X_AUTH_TOKEN']
-        version, account, container, obj = split_path(unquote(req.path), 4, 4, True)
-        path = '/' + '/'.join([version, account, container])
-        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(path, token)
+        # get encryption key
+        key_id, key = controller.get_container_key(req)
 
+        # encrypt object
         req.body = encrypt(key, req.body)
         req.body = key_id + req.body
 
+        # call controller method
         return func(*a, **kw)
     return wrapped
 
@@ -51,24 +45,20 @@ def obj_body_decrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
+        (controller, req) = a
+        # call controller method
         res = func(*a, **kw)
 
-        app = a[0].app
-        kms_host = app.kms_host
-        kms_port = app.kms_port
-        kms_timeout = app.kms_timeout
-        conn_timeout = app.conn_timeout
-
-        token = res.environ['HTTP_X_AUTH_TOKEN']
-
-        req = a[1]
-        version, account, container, obj = split_path(unquote(req.path), 4, 4, True)
-        path = '/' + '/'.join([version, account, container])
+        # extract encryption key id
         key_id = res.body[0:32]
         res.body = res.body[32:]
-        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(path, token, key_id=key_id)
 
+        # get encryption key
+        key_id, key = controller.get_container_key(req, key_id=key_id)
+
+        # decrypt object
         res.body = decrypt(key, res.body)
+
         return res
     return wrapped
 
@@ -81,21 +71,13 @@ def destination_encrypted(func):
     """
     @functools.wraps(func)
     def wrapped(*a, **kw):
-        app = a[0].app
-        kms_host = app.kms_host
-        kms_port = app.kms_port
-        kms_timeout = app.kms_timeout
-        conn_timeout = app.conn_timeout
+        (controller, req) = a
 
-        req = a[1]
-        token = req.environ['HTTP_X_AUTH_TOKEN']
-        path_info = req.path
-        version, account, container, obj = split_path(unquote(path_info), 4, 4, True)
-        key_path = '/' + '/'.join([version, account])
+        # get encryption key
+        key_id, key = controller.get_account_key(req)
 
-        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
-
-        destination_path = req.environ['HTTP_DESTINATION']
+        # get origin destination path
+        destination_path = unquote(req.environ['HTTP_DESTINATION'])
 
         # get encrypted destination path
         container, obj = split_path('/' + destination_path, 1, 2, True)
@@ -109,11 +91,10 @@ def destination_encrypted(func):
             obj = quote(obj, safe='')
             destination_path_encrypted += "/" + obj
 
-
         # set destination path
         req.environ['HTTP_DESTINATION'] = destination_path_encrypted
 
-        # call controller
+        # call controller method
         res = func(*a, **kw)
 
         # reset path

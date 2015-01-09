@@ -61,7 +61,7 @@ def redirected(func):
         req.environ['SERVER_NAME'] = proxy_host
         req.environ['SERVER_PORT'] = proxy_port
 
-        # call controller
+        # call controller method
         res = func(*a, **kw)
 
         # reset remote
@@ -86,21 +86,16 @@ def path_encrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
-        app = a[0].app
-        kms_host = app.kms_host
-        kms_port = app.kms_port
-        kms_timeout = app.kms_timeout
-        conn_timeout = app.conn_timeout
+        (controller, req) = a
 
-        req = a[1]
-        token = req.environ['HTTP_X_AUTH_TOKEN']
+        # get encryption key
+        key_id, key = controller.get_account_key(req)
 
-        path_info = req.path
-        version, account, container, obj = split_path(unquote(path_info), 1, 4, True)
-        key_path = '/' + '/'.join([version, account])
-        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
+        # get origin path
+        path_info = unquote(req.path)
+        version, account, container, obj = split_path(path_info, 2, 4, True)
 
-        # get encrypted path
+        # encrypt path
         path_info_encrypted = "/" + version + "/" + account
         if container:
             container = b64encode(encrypt(key, container))
@@ -113,7 +108,7 @@ def path_encrypted(func):
         req.environ['PATH_INFO'] = path_info_encrypted
         req.environ['RAW_PATH_INFO'] = path_info_encrypted
 
-        # call controller
+        # call controller method
         res = func(*a, **kw)
 
         # reset path
@@ -224,3 +219,40 @@ class Controller(object):
         source = possible_source
 
         return source
+
+    def get_kms_api(self):
+        kms_host = self.app.kms_host
+        kms_port = self.app.kms_port
+        kms_timeout = self.app.kms_timeout
+        conn_timeout = self.app.conn_timeout
+
+        return kms_api(kms_host, kms_port, conn_timeout, kms_timeout)
+
+    @staticmethod
+    def get_key_path(req, key_type):
+        if key_type != 'account' and key_type != 'container':
+            return None
+
+        path = unquote(req.path)
+        if key_type == 'account':
+            version, account, container, obj = split_path(path, 2, 4, True)
+            key_path = '/' + '/'.join([version, account])
+        elif key_type == 'container':
+            version, account, container, obj = split_path(path, 3, 4, True)
+            key_path = '/' + '/'.join([version, account, container])
+        else:
+            key_path = None
+
+        return key_path
+
+    def get_key(self, req, key_type, key_id=None):
+        kms_connection = self.get_kms_api()
+        key_path = self.get_key_path(req, key_type)
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        return kms_connection.get_key(key_path, token, key_id)
+
+    def get_account_key(self, req, key_id=None):
+        return self.get_key(req, 'account', key_id)
+
+    def get_container_key(self, req, key_id=None):
+        return self.get_key(req, 'container', key_id)

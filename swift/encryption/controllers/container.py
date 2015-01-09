@@ -23,27 +23,22 @@ def container_body_decrypted(func):
     @functools.wraps(func)
     def wrapped(*a, **kw):
         # TODO: support json format
+        (controller, req) = a
+
+        # call controller method
         res = func(*a, **kw)
 
-        app = a[0].app
-        kms_host = app.kms_host
-        kms_port = app.kms_port
-        kms_timeout = app.kms_timeout
-        conn_timeout = app.conn_timeout
+        # get encryption key
+        key_id, key = controller.get_account_key(req)
 
-        token = res.environ['HTTP_X_AUTH_TOKEN']
-        path_info = res.request.path
-        version, account, container = split_path(unquote(path_info), 3, 3, True)
-        key_path = '/' + '/'.join([version, account])
-
-        key_id, key = kms_api(kms_host, kms_port, conn_timeout, kms_timeout).get_key(key_path, token, key_id=None)
-
+        # decrypt response body
         objects = res.body.splitlines()
         body_decrypted = ""
         for obj in objects:
             obj_decrypted = decrypt(key, b64decode(obj))
             body_decrypted += obj_decrypted + '\n'
         res.body = body_decrypted
+
         return res
     return wrapped
 
