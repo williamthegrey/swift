@@ -5,7 +5,6 @@ from swift.common.utils import public, config_true_value, split_path
 from swift.encryption.controllers.base import Controller, delay_denial, \
     update_headers, redirected, path_encrypted
 from swift import gettext_ as _
-from swift.encryption.api import swift_api
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
 import functools
