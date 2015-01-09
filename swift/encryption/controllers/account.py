@@ -3,7 +3,7 @@ __author__ = 'William'
 from urllib import unquote, quote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
-    update_headers, redirected, path_encrypted
+    redirected, path_encrypted
 from swift import gettext_ as _
 from swift.encryption.utils.encryptionutils import encrypt, decrypt
 from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
@@ -59,7 +59,7 @@ class AccountController(Controller):
     def GET(self, req):
         """Handler for HTTP GET requests."""
 
-        res = self.get_working_response(req)
+        res = self.forward_to_swift_proxy(req)
         return res
 
     @public
@@ -69,7 +69,7 @@ class AccountController(Controller):
     def HEAD(self, req):
         """Handler for HTTP HEAD requests."""
 
-        res = self.get_working_response(req)
+        res = self.forward_to_swift_proxy(req)
         return res
 
     @public
@@ -79,5 +79,5 @@ class AccountController(Controller):
     def POST(self, req):
         """HTTP POST request handler."""
 
-        res = self.get_working_response(req)
+        res = self.forward_to_swift_proxy(req)
         return res

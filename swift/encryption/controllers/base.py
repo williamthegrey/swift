@@ -11,6 +11,7 @@ from swift.common.bufferedhttp import http_connect_raw
 from eventlet.timeout import Timeout
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 from swift.common.exceptions import ConnectionTimeout
+from swift.encryption.utils.httputils import get_working_response
 import functools
 from base64 import urlsafe_b64encode as b64encode, urlsafe_b64decode as b64decode
 from swift.encryption.api.kms_api import kms_api
@@ -119,23 +120,6 @@ def path_encrypted(func):
     return wrapped
 
 
-def update_headers(response, headers):
-    """
-    Helper function to update headers in the response.
-
-    :param response: swob.Response object
-    :param headers: dictionary headers
-    """
-    if hasattr(headers, 'items'):
-        headers = headers.items()
-    for name, value in headers:
-        if name == 'etag':
-            response.headers[name] = value.replace('"', '')
-        elif name not in ('date', 'content-length', 'content-type',
-                          'connection', 'x-put-timestamp', 'x-delete-after'):
-            response.headers[name] = value
-
-
 class Controller(object):
     """Base WSGI controller class for the encryption server"""
     server_type = 'Base'
@@ -164,61 +148,10 @@ class Controller(object):
                     self._allowed_methods.add(name)
         return self._allowed_methods
 
-    def get_working_response(self, req):
-        source = self._get_source(req)
-        res = None
-        if source:
-            res = Response(request=req)
-            res.body = source.read()
-            source.nuke_from_orbit()
-
-            if req.method == 'GET' and \
-                    source.status in (HTTP_OK, HTTP_PARTIAL_CONTENT):
-                # See NOTE: swift_conn at top of file about this.
-                res.swift_conn = source.swift_conn
-            res.status = source.status
-            update_headers(res, source.getheaders())
-            if not res.environ:
-                res.environ = {}
-            res.environ['swift_x_timestamp'] = \
-                source.getheader('x-timestamp')
-            res.accept_ranges = 'bytes'
-            res.content_length = source.getheader('Content-Length')
-            if source.getheader('Content-Type'):
-                res.charset = None
-                res.content_type = source.getheader('Content-Type')
-
-        return res
-
-    def _get_source(self, req):
+    def forward_to_swift_proxy(self, req):
+        conn_timeout = self.app.conn_timeout
         proxy_timeout = self.app.proxy_timeout
-        newest = config_true_value(req.headers.get('x-newest', 'f'))
-        if self.server_type == 'Object' and not newest:
-            proxy_timeout = self.app.recoverable_proxy_timeout
-
-        server = {'ip': req.environ['SERVER_NAME'], 'port': req.environ['SERVER_PORT']}
-
-        try:
-            with ConnectionTimeout(self.app.conn_timeout):
-                conn = http_connect_raw(
-                    server['ip'], server['port'], req.method,
-                    req.path, req.headers, req.query_string)
-
-            with Timeout(proxy_timeout):
-                conn.send(req.body)
-                possible_source = conn.getresponse()
-                # See NOTE: swift_conn at top of file about this.
-                possible_source.swift_conn = conn
-        except (Exception, Timeout) as e:
-            self.app.exception_occurred(
-                server, self.server_type,
-                _('Trying to %(method)s %(path)s') %
-                {'method': req.method, 'path': req.path})
-
-        # TODO: best response
-        source = possible_source
-
-        return source
+        return get_working_response(req, conn_timeout, proxy_timeout)
 
     def get_kms_api(self):
         kms_host = self.app.kms_host
