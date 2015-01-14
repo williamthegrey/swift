@@ -24,16 +24,17 @@ def container_body_decrypted(func):
         # call controller method
         res = func(*a, **kw)
 
-        # get encryption key
-        key_id, key = controller.get_account_key(req)
+        if controller.is_container_encrypted(req):
+            # get encryption key
+            key_id, key = controller.get_account_key(req)
 
-        # decrypt response body
-        objects = res.body.splitlines()
-        body_decrypted = ""
-        for obj in objects:
-            obj_decrypted = decrypt(key, b64decode(obj))
-            body_decrypted += obj_decrypted + '\n'
-        res.body = body_decrypted
+            # decrypt response body
+            objects = res.body.splitlines()
+            body_decrypted = ""
+            for obj in objects:
+                obj_decrypted = decrypt(key, b64decode(obj))
+                body_decrypted += obj_decrypted + '\n'
+            res.body = body_decrypted
 
         return res
     return wrapped

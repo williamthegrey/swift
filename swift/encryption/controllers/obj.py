@@ -21,12 +21,13 @@ def obj_body_encrypted(func):
     def wrapped(*a, **kw):
         (controller, req) = a
 
-        # get encryption key
-        key_id, key = controller.get_container_key(req)
+        if controller.is_container_encrypted(req):
+            # get encryption key
+            key_id, key = controller.get_container_key(req)
 
-        # encrypt object
-        req.body = encrypt(key, req.body)
-        req.body = key_id + req.body
+            # encrypt object
+            req.body = encrypt(key, req.body)
+            req.body = key_id + req.body
 
         # call controller method
         return func(*a, **kw)
@@ -46,15 +47,16 @@ def obj_body_decrypted(func):
         # call controller method
         res = func(*a, **kw)
 
-        # extract encryption key id
-        key_id = res.body[0:32]
-        res.body = res.body[32:]
+        if res.is_success and controller.is_container_encrypted(req):
+            # extract encryption key id
+            key_id = res.body[0:32]
+            res.body = res.body[32:]
 
-        # get encryption key
-        key_id, key = controller.get_container_key(req, key_id=key_id)
+            # get encryption key
+            key_id, key = controller.get_container_key(req, key_id=key_id)
 
-        # decrypt object
-        res.body = decrypt(key, res.body)
+            # decrypt object
+            res.body = decrypt(key, res.body)
 
         return res
     return wrapped
@@ -78,15 +80,11 @@ def destination_encrypted(func):
 
         # get encrypted destination path
         container, obj = split_path('/' + destination_path, 1, 2, True)
-        destination_path_encrypted = ""
-        if container:
-            container = b64encode(encrypt(key, container))
-            container = quote(container, safe='')
-            destination_path_encrypted += container
+        destination_path_encrypted = quote(container, safe='')
         if obj:
             obj = b64encode(encrypt(key, obj))
             obj = quote(obj, safe='')
-            destination_path_encrypted += "/" + obj
+            destination_path_encrypted += '/' + obj
 
         # set destination path
         req.environ['HTTP_DESTINATION'] = destination_path_encrypted

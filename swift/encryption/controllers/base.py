@@ -83,32 +83,32 @@ def path_encrypted(func):
     def wrapped(*a, **kw):
         (controller, req) = a
 
-        # get encryption key
-        key_id, key = controller.get_account_key(req)
-
         # get origin path
         path_info = unquote(req.path)
         version, account, container, obj = split_path(path_info, 2, 4, True)
 
-        # encrypt path
-        path_info_encrypted = "/" + version + "/" + account
-        if container:
-            container = b64encode(encrypt(key, container))
-            path_info_encrypted += "/" + container
-        if obj:
+        if obj and controller.is_container_encrypted(req):
+            # get encryption key
+            key_id, key = controller.get_account_key(req)
+
+            # encrypt path
+            path_info_encrypted = '/' + '/'.join([version, account, container])
             obj = b64encode(encrypt(key, obj))
-            path_info_encrypted += "/" + obj
+            path_info_encrypted += '/' + obj
 
-        # set path
-        req.environ['PATH_INFO'] = path_info_encrypted
-        req.environ['RAW_PATH_INFO'] = path_info_encrypted
+            # set path
+            req.environ['PATH_INFO'] = path_info_encrypted
+            req.environ['RAW_PATH_INFO'] = path_info_encrypted
 
-        # call controller method
-        res = func(*a, **kw)
+            # call controller method
+            res = func(*a, **kw)
 
-        # reset path
-        res.environ['PATH_INFO'] = path_info
-        res.environ['RAW_PATH_INFO'] = path_info
+            # reset path
+            res.environ['PATH_INFO'] = path_info
+            res.environ['RAW_PATH_INFO'] = path_info
+        else:
+            # call controller method
+            res = func(*a, **kw)
 
         return res
     return wrapped
