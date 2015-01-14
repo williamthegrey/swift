@@ -4,9 +4,6 @@ from urllib import unquote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
     redirected, path_encrypted
-from swift.encryption.utils.encryptionutils import decrypt
-from base64 import urlsafe_b64decode as b64decode
-import functools
 
 
 class AccountController(Controller):
