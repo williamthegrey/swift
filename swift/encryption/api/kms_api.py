@@ -16,8 +16,9 @@ class Connection:
         self.kms_timeout = kms_timeout
 
     def get_key(self, path, token, key_id=None):
-        environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port, 'HTTP_HOST': self.host + ':' + self.port,
-                   'HTTP_X_KMS_KEY_ID': key_id, 'HTTP_X_AUTH_TOKEN': token}
+        environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
+                   'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token,
+                   'HTTP_X_KMS_KEY_ID': key_id}
         req = Request.blank(path, environ=environ)
 
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
@@ -35,14 +36,18 @@ class Connection:
 
         return key_id_return, key
 
-    def head_key(self, token, key_id=None):
+    def head_key(self, path, token, key_id=None):
         environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
-                   'HTTP_HOST': self.host + ':' + self.port, 'METHOD': 'HEAD'}
-        if key_id:
-            environ['X-KMS-KEY-ID'] = key_id
-        environ['X-Auth-Token'] = token
-        req = Request.blank('/', environ=environ)
+                   'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token,
+                   'HTTP_X_KMS_KEY_ID': key_id, 'REQUEST_METHOD': 'HEAD'}
+        req = Request.blank(path, environ=environ)
 
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
-        key_id = res.environ.getattribute('X-KMS-KEY-ID', None)
+        key_id_return = None
+        if res:
+            key_id_return = res.headers['X-Kms-Key-Id']
+
+        if not key_id_return or len(key_id_return) != 32:
+            raise ValueError('Invalid key_id')
+
         return key_id
