@@ -8,6 +8,7 @@ from swift.encryption.utils.httputils import get_working_response
 import functools
 from base64 import urlsafe_b64encode as b64encode
 from swift.encryption.api.kms_api import kms_api
+from swift.encryption.api.swift_api import swift_api
 
 
 def delay_denial(func):
@@ -182,3 +183,18 @@ class Controller(object):
 
     def get_container_key(self, req, key_id=None):
         return self.get_key(req, 'container', key_id)
+
+    def is_container_encrypted(self, req):
+        swift_connection = swift_api(self.app.proxy_host, self.app.proxy_port,
+                                     self.app.conn_timeout, self.app.proxy_timeout)
+        path = unquote(req.path)
+        version, account, container, obj = split_path(path, 3, 4, True)
+        path = '/' + '/'.join([version, account, container])
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+
+        encrypted = swift_connection.head_container_meta_encrypted(path, token)
+
+        if encrypted in ('True', 'true'):
+            return True
+        else:
+            return False
