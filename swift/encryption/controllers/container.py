@@ -35,7 +35,7 @@ def container_body_decrypted(func):
                 for obj in objects:
                     obj_name = obj[u'name'].encode(res.charset)
                     obj_name = decrypt(key, b64decode(obj_name))
-                    obj[u'name'] = unicode(obj_name)
+                    obj[u'name'] = unicode(obj_name, res.charset)
                 res.body = json.dumps(objects)
             elif res_format == 'xml':
                 # TODO: support xml
