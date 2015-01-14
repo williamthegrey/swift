@@ -7,6 +7,7 @@ from swift.encryption.controllers.base import Controller, delay_denial, \
 from swift.encryption.utils.encryptionutils import decrypt
 from base64 import urlsafe_b64decode as b64decode
 import functools
+import json
 
 
 def container_body_decrypted(func):
@@ -18,7 +19,6 @@ def container_body_decrypted(func):
 
     @functools.wraps(func)
     def wrapped(*a, **kw):
-        # TODO: support json format
         (controller, req) = a
 
         # call controller method
@@ -29,12 +29,26 @@ def container_body_decrypted(func):
             key_id, key = controller.get_account_key(req)
 
             # decrypt response body
-            objects = res.body.splitlines()
-            body_decrypted = ""
-            for obj in objects:
-                obj_decrypted = decrypt(key, b64decode(obj))
-                body_decrypted += obj_decrypted + '\n'
-            res.body = body_decrypted
+            res_format = req.params.get('format', 'plain')
+            if res_format == 'json':
+                objects = json.loads(res.body)
+                for obj in objects:
+                    obj_name = obj[u'name'].encode(res.charset)
+                    obj_name = decrypt(key, b64decode(obj_name))
+                    obj[u'name'] = unicode(obj_name)
+                res.body = json.dumps(objects)
+            elif res_format == 'xml':
+                # TODO: support xml
+                pass
+            elif res_format == 'plain':
+                objects = res.body.splitlines()
+                body_decrypted = ""
+                for obj in objects:
+                    obj_decrypted = decrypt(key, b64decode(obj))
+                    body_decrypted += obj_decrypted + '\n'
+                res.body = body_decrypted
+            else:
+                return res
 
         return res
     return wrapped
