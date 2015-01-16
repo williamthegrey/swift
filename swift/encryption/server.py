@@ -9,6 +9,7 @@ from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
 from swift.encryption.controllers import AccountController, ContainerController, ObjectController
+from swift.encryption.controllers.base import ForwardException
 
 
 class Application(object):
@@ -82,7 +83,7 @@ class Application(object):
             err = HTTPPreconditionFailed(
                 request=req, body='Invalid UTF8 or contains NULL')
             return err(env, start_response)
-        except (Exception, Timeout) as e:
+        except (Exception, Timeout):
             start_response('500 Server Error',
                            [('Content-Type', 'text/plain')])
             return ['Internal server error.\n']
@@ -171,6 +172,9 @@ class Application(object):
             return handler(req)
         except HTTPException as error_response:
             return error_response
+        except ForwardException as e:
+            self.logger.exception(_('ERROR Failed to forward to swift proxy due to %s' % e.reason))
+            return HTTPServerError(request=req)
         except (Exception, Timeout) as e:
             self.logger.exception(_('ERROR Unhandled exception in request'))
             return HTTPServerError(request=req)
