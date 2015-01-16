@@ -139,7 +139,22 @@ class ObjectController(Controller):
     def PUT(self, req):
         """HTTP PUT request handler."""
 
-        res = self.forward_to_swift_proxy(req)
+        te = req.environ.get('HTTP_TRANSFER_ENCODING', None)
+        ae = req.environ.get('HTTP_ACCEPT_ENCODING', None)
+
+        # disable chunked transfer
+        if te == 'chunked':
+            del req.environ['HTTP_TRANSFER_ENCODING']
+            del req.environ['HTTP_ACCEPT_ENCODING']
+
+            res = self.forward_to_swift_proxy(req)
+
+            req.environ['HTTP_TRANSFER_ENCODING'] = te
+            req.environ['HTTP_ACCEPT_ENCODING'] = ae
+
+        else:
+            res = self.forward_to_swift_proxy(req)
+
         return res
 
     @public
