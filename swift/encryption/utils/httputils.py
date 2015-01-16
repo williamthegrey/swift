@@ -3,24 +3,22 @@ from swift.common.bufferedhttp import http_connect_raw
 from eventlet.timeout import Timeout
 from swift.common.exceptions import ConnectionTimeout
 from swift.common.swob import Response
-import logging
 
 
 def get_working_response(req, conn_timeout, res_timeout):
     source = _get_source(req, conn_timeout, res_timeout)
-    res = None
-    if source:
-        res = Response(request=req)
-        res.body = source.read()
-        source.nuke_from_orbit()
 
-        res.status = source.status
-        update_headers(res, source.getheaders())
-        if not res.environ:
-            res.environ = {}
-        if source.getheader('Content-Type'):
-            res.charset = None
-            res.content_type = source.getheader('Content-Type')
+    res = Response(request=req)
+    res.body = source.read()
+    source.nuke_from_orbit()
+
+    res.status = source.status
+    update_headers(res, source.getheaders())
+    if not res.environ:
+        res.environ = {}
+    if source.getheader('Content-Type'):
+        res.charset = None
+        res.content_type = source.getheader('Content-Type')
 
     return res
 
@@ -36,13 +34,9 @@ def _get_source(req, conn_timeout, res_timeout):
 
         with Timeout(res_timeout):
             conn.send(req.body)
-            possible_source = conn.getresponse()
-    except (Exception, Timeout) as e:
-        logging.exception('Trying to %(method)s %(path)s' % {'method': req.method, 'path': req.path})
-        possible_source = None
-
-    # TODO: best response
-    source = possible_source
+            source = conn.getresponse()
+    except Timeout as e:
+        raise e
 
     return source
 
