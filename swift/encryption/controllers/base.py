@@ -9,6 +9,7 @@ import functools
 from base64 import urlsafe_b64encode as b64encode
 from swift.encryption.api.kms_api import kms_api
 from swift.encryption.api.swift_api import swift_api
+from eventlet.timeout import Timeout
 
 
 def delay_denial(func):
@@ -145,7 +146,12 @@ class Controller(object):
     def forward_to_swift_proxy(self, req):
         conn_timeout = self.app.conn_timeout
         proxy_timeout = self.app.proxy_timeout
-        return get_working_response(req, conn_timeout, proxy_timeout)
+        try:
+            res = get_working_response(req, conn_timeout, proxy_timeout)
+        except Timeout:
+            raise ForwardException(req.method, req.path, 'timeout')
+
+        return res
 
     def get_kms_api(self):
         kms_host = self.app.kms_host
@@ -198,3 +204,10 @@ class Controller(object):
             return True
         else:
             return False
+
+
+class ForwardException(Exception):
+    def __init__(self, method, path, reason):
+        self.method = method
+        self.path = path
+        self.reason = reason
