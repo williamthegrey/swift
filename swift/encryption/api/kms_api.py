@@ -51,3 +51,10 @@ class Connection:
             raise ValueError('Invalid key_id')
 
         return key_id
+
+
+class KmsException(Exception):
+    def __init__(self, method, path, reason):
+        self.method = method
+        self.path = path
+        self.reason = reason

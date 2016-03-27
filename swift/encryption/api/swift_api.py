@@ -30,3 +30,10 @@ class Connection:
                 encrypted = 'False'
 
         return encrypted
+
+
+class SwiftException(Exception):
+    def __init__(self, method, path, reason):
+        self.method = method
+        self.path = path
+        self.reason = reason
