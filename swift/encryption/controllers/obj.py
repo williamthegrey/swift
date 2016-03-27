@@ -72,28 +72,31 @@ def destination_encrypted(func):
     def wrapped(*a, **kw):
         (controller, req) = a
 
-        # get encryption key
-        key_id, key = controller.get_account_key(req)
-
         # get origin destination path
         destination_path = unquote(req.environ['HTTP_DESTINATION'])
-
-        # get encrypted destination path
         container, obj = split_path('/' + destination_path, 1, 2, True)
-        destination_path_encrypted = quote(container, safe='')
-        if obj:
+
+        if obj and controller.is_container_encrypted(req):
+            # get encryption key
+            key_id, key = controller.get_account_key(req)
+
+            # encrypt destination path
+            destination_path_encrypted = container
             obj = b64encode(encrypt(key, obj))
-            obj = quote(obj, safe='')
             destination_path_encrypted += '/' + obj
+            destination_path_encrypted = quote(destination_path_encrypted)
 
-        # set destination path
-        req.environ['HTTP_DESTINATION'] = destination_path_encrypted
+            # set destination path
+            req.environ['HTTP_DESTINATION'] = destination_path_encrypted
 
-        # call controller method
-        res = func(*a, **kw)
+            # call controller method
+            res = func(*a, **kw)
 
-        # reset path
-        req.environ['HTTP_DESTINATION'] = destination_path
+            # reset path
+            req.environ['HTTP_DESTINATION'] = destination_path
+        else:
+            # call controller method
+            res = func(*a, **kw)
 
         return res
     return wrapped
@@ -138,6 +141,8 @@ class ObjectController(Controller):
     @obj_body_encrypted
     def PUT(self, req):
         """HTTP PUT request handler."""
+
+        # TODO: get rid of original file name
 
         te = req.environ.get('HTTP_TRANSFER_ENCODING', None)
         ae = req.environ.get('HTTP_ACCEPT_ENCODING', None)
