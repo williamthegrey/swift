@@ -79,16 +79,20 @@ def destination_encrypted(func):
 
         if obj and controller.is_container_encrypted(req):
             # get encryption key
-            key_id, key = controller.get_container_key(req)
+            key = controller.get_container_key(req)
 
             # encrypt destination path
             destination_path_encrypted = container
-            obj = b64encode(controller.get_local_key_path(key, obj))
+            local_key_path = controller.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            obj = b64encode(cipher.encrypt(obj, key))
             destination_path_encrypted += '/' + obj
             destination_path_encrypted = quote(destination_path_encrypted)
 
             # set destination path
             req.environ['HTTP_DESTINATION'] = destination_path_encrypted
+
+            # TODO: copy key
 
             # call controller method
             res = func(*a, **kw)
