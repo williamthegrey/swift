@@ -1,10 +1,8 @@
-__author__ = 'William'
-
 from urllib import unquote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
     redirected, path_encrypted
-from swift.encryption.utils.encryptionutils import decrypt
+from swift.encryption.utils.encryptionutils import CompositeCipher
 from base64 import urlsafe_b64decode as b64decode
 import functools
 import json
@@ -26,7 +24,7 @@ def container_body_decrypted(func):
 
         if controller.is_container_encrypted(req):
             # get encryption key
-            key_id, key = controller.get_account_key(req)
+            key = controller.get_container_key(req)
 
             # decrypt response body
             res_format = req.params.get('format', 'plain')
@@ -34,7 +32,9 @@ def container_body_decrypted(func):
                 objects = json.loads(res.body)
                 for obj in objects:
                     obj_name = obj[u'name'].encode(res.charset)
-                    obj_name = decrypt(key, b64decode(obj_name))
+                    local_key_path = controller.get_local_key_path(req)
+                    cipher = CompositeCipher(local_key_path)
+                    obj_name = cipher.decrypt(b64decode(obj_name), key)
                     obj[u'name'] = unicode(obj_name, res.charset)
                 res.body = json.dumps(objects)
             elif res_format == 'xml':
@@ -44,13 +44,16 @@ def container_body_decrypted(func):
                 objects = res.body.splitlines()
                 body_decrypted = ""
                 for obj in objects:
-                    obj_decrypted = decrypt(key, b64decode(obj))
+                    local_key_path = controller.get_local_key_path(req)
+                    cipher = CompositeCipher(local_key_path)
+                    obj_decrypted = cipher.decrypt(b64decode(obj), key)
                     body_decrypted += obj_decrypted + '\n'
                 res.body = body_decrypted
             else:
                 return res
 
         return res
+
     return wrapped
 
 
@@ -91,6 +94,14 @@ class ContainerController(Controller):
     @path_encrypted
     def PUT(self, req):
         """HTTP PUT request handler."""
+
+        if 'HTTP_X_CONTAINER_META_ENCRYPTED' in req.environ \
+                and req.environ['HTTP_X_CONTAINER_META_ENCRYPTED'] in ('True', 'true'):
+            local_key_path = self.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            key = cipher.generate_key()
+
+            self.put_container_key(req, key[0])
 
         res = self.forward_to_swift_proxy(req)
         return res

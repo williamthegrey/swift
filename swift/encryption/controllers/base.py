@@ -1,12 +1,10 @@
-__author__ = 'William'
-
 import inspect
 from urllib import unquote
-from swift.encryption.utils.encryptionutils import encrypt
+from swift.encryption.utils.encryptionutils import CompositeCipher
 from swift.common.utils import split_path
 from swift.encryption.utils.httputils import get_working_response
 import functools
-from base64 import urlsafe_b64encode as b64encode
+from base64 import urlsafe_b64encode as b64encode, b64decode
 from swift.encryption.api.kms_api import kms_api
 from swift.encryption.api.swift_api import swift_api
 from eventlet.timeout import Timeout
@@ -90,14 +88,22 @@ def path_encrypted(func):
 
         if obj and controller.is_container_encrypted(req):
             # get encryption key
-            key_id, key = controller.get_account_key(req)
+            key = controller.get_container_key(req)
+            if not key:
+                raise EncryptedAccessException(req.method, req.path, 'Not authorized')
 
             # encrypt path
             path_info_encrypted = '/' + '/'.join([version, account, container])
-            obj = b64encode(encrypt(key, obj))
-            path_info_encrypted += '/' + obj
+            local_key_path = controller.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            obj = cipher.encrypt(obj, key)
+            obj = b64encode(obj)
+
+            # check encrypted obj path
+            obj = controller.check_path(req, obj)
 
             # set path
+            path_info_encrypted += '/' + obj
             req.environ['PATH_INFO'] = path_info_encrypted
             req.environ['RAW_PATH_INFO'] = path_info_encrypted
 
@@ -162,33 +168,61 @@ class Controller(object):
         return kms_api(kms_host, kms_port, conn_timeout, kms_timeout)
 
     @staticmethod
-    def get_key_path(req, key_type):
-        if key_type != 'account' and key_type != 'container':
+    def build_key_path(req, key_type):
+        user_id = req.environ['HTTP_X_USER_ID']
+
+        if key_type != 'user' and key_type != 'container' and key_type != 'object':
             return None
 
         path = unquote(req.path)
-        if key_type == 'account':
+        if key_type == 'user':
             version, account, container, obj = split_path(path, 2, 4, True)
-            key_path = '/' + '/'.join([version, account])
+            key_path = '/' + '/'.join([version, account, user_id])
         elif key_type == 'container':
             version, account, container, obj = split_path(path, 3, 4, True)
-            key_path = '/' + '/'.join([version, account, container])
+            key_path = '/' + '/'.join([version, account, user_id, container])
+        elif key_type == 'object':
+            version, account, container, obj = split_path(path, 4, 4, True)
+            key_path = '/' + '/'.join([version, account, user_id, container, obj])
         else:
             key_path = None
 
         return key_path
 
-    def get_key(self, req, key_type, key_id=None):
+    def get_local_key_path(self, req):
+        user_id = req.environ['HTTP_X_USER_ID']
+        local_key_path = self.app.local_key_dir + user_id + '.pem'
+        return local_key_path
+
+    def get_key(self, req, key_type):
         kms_connection = self.get_kms_api()
-        key_path = self.get_key_path(req, key_type)
+        key_path = self.build_key_path(req, key_type)
         token = req.environ['HTTP_X_AUTH_TOKEN']
-        return kms_connection.get_key(key_path, token, key_id)
+        return kms_connection.get_key(key_path, token)
 
-    def get_account_key(self, req, key_id=None):
-        return self.get_key(req, 'account', key_id)
+    def get_user_key(self, req):
+        return self.get_key(req, 'user')
 
-    def get_container_key(self, req, key_id=None):
-        return self.get_key(req, 'container', key_id)
+    def get_container_key(self, req):
+        return self.get_key(req, 'container')
+
+    def get_object_key(self, req):
+        return self.get_key(req, 'object')
+
+    def put_key(self, req, key_type, key):
+        kms_connection = self.get_kms_api()
+        key_path = self.build_key_path(req, key_type)
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        return kms_connection.put_key(key_path, key, token)
+
+    def put_user_key(self, req, key):
+        return self.put_key(req, 'user', key)
+
+    def put_container_key(self, req, key):
+        return self.put_key(req, 'container', key)
+
+    def put_object_key(self, req, key):
+        return self.put_key(req, 'object', key)
 
     def is_container_encrypted(self, req):
         swift_connection = swift_api(self.app.proxy_host, self.app.proxy_port,
@@ -198,15 +232,42 @@ class Controller(object):
         path = '/' + '/'.join([version, account, container])
         token = req.environ['HTTP_X_AUTH_TOKEN']
 
-        encrypted = swift_connection.head_container_meta_encrypted(path, token)
-
-        if encrypted in ('True', 'true'):
+        headers = swift_connection.head(path, token)
+        if 'X-Container-Meta-Encrypted' in headers and headers['X-Container-Meta-Encrypted'] in ('True', 'true'):
             return True
+
         else:
             return False
 
+    def check_path(self, req, obj_intended):
+        swift_connection = swift_api(self.app.proxy_host, self.app.proxy_port,
+                                     self.app.conn_timeout, self.app.proxy_timeout)
+        path = unquote(req.path)
+        version, account, container, obj = split_path(path, 4, 4, True)
+        path = '/' + '/'.join([version, account, container])
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+
+        res = swift_connection.get(path, token)
+        objects = res.body.splitlines()
+        key = self.get_container_key(req)
+        for obj_enc in objects:
+            local_key_path = self.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            obj_dec = cipher.decrypt(b64decode(obj_enc), key)
+            if obj == obj_dec:
+                return obj_enc
+
+        return obj_intended
+
 
 class ForwardException(Exception):
+    def __init__(self, method, path, reason):
+        self.method = method
+        self.path = path
+        self.reason = reason
+
+
+class EncryptedAccessException(Exception):
     def __init__(self, method, path, reason):
         self.method = method
         self.path = path

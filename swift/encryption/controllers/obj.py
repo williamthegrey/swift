@@ -3,8 +3,8 @@ __author__ = 'William'
 from urllib import unquote, quote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
-    redirected, path_encrypted
-from swift.encryption.utils.encryptionutils import encrypt, decrypt
+    redirected, path_encrypted, EncryptedAccessException
+from swift.encryption.utils.encryptionutils import CompositeCipher
 from base64 import urlsafe_b64encode as b64encode
 import functools
 from swift.common.utils import split_path
@@ -22,12 +22,14 @@ def obj_body_encrypted(func):
         (controller, req) = a
 
         if controller.is_container_encrypted(req):
-            # get encryption key
-            key_id, key = controller.get_container_key(req)
-
             # encrypt object
-            req.body = encrypt(key, req.body)
-            req.body = key_id + req.body
+            local_key_path = controller.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            msg_dict = cipher.encrypt_sign(req.body)
+            req.body = msg_dict['signature'] + msg_dict['msg']
+
+            # put encryption key
+            controller.put_object_key(req, msg_dict['key'][0])
 
         # call controller method
         return func(*a, **kw)
@@ -48,15 +50,14 @@ def obj_body_decrypted(func):
         res = func(*a, **kw)
 
         if res.is_success and controller.is_container_encrypted(req):
-            # extract encryption key id
-            key_id = res.body[0:32]
-            res.body = res.body[32:]
-
             # get encryption key
-            key_id, key = controller.get_container_key(req, key_id=key_id)
+            key = controller.get_object_key(req)
+            if not key:
+                raise EncryptedAccessException(req.method, req.path, 'Not authorized')
 
-            # decrypt object
-            res.body = decrypt(key, res.body)
+            local_key_path = controller.get_local_key_path(req)
+            cipher = CompositeCipher(local_key_path)
+            res.body = cipher.verify_decrypt(res.body[256:], res.body[0:256], key)
 
         return res
     return wrapped
@@ -78,11 +79,11 @@ def destination_encrypted(func):
 
         if obj and controller.is_container_encrypted(req):
             # get encryption key
-            key_id, key = controller.get_account_key(req)
+            key_id, key = controller.get_container_key(req)
 
             # encrypt destination path
             destination_path_encrypted = container
-            obj = b64encode(encrypt(key, obj))
+            obj = b64encode(controller.get_local_key_path(key, obj))
             destination_path_encrypted += '/' + obj
             destination_path_encrypted = quote(destination_path_encrypted)
 
