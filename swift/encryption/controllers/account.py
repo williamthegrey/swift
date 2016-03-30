@@ -1,5 +1,3 @@
-__author__ = 'William'
-
 from urllib import unquote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
