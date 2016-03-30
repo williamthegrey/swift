@@ -88,6 +88,7 @@ kms_timeout = 5
 auth_timeout = 5
 conn_timeout = 0.5
 client_timeout = 60
+local_key_dir = /etc/swift/encryption-server/
 use = egg:swift#encryption
 # You can override the default log routing for this app here:
 # set log_name = encryption-server
