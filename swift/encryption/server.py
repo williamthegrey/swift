@@ -9,7 +9,7 @@ from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
 from swift.encryption.controllers import AccountController, ContainerController, ObjectController
-from swift.encryption.controllers.base import ForwardException
+from swift.encryption.controllers.base import ForwardException, EncryptedAccessException
 
 
 class Application(object):
@@ -25,6 +25,7 @@ class Application(object):
 
         swift_dir = conf.get('swift_dir', '/etc/swift')
         self.swift_dir = swift_dir
+        self.local_key_dir = conf.get('local_key_dir', '/etc/swift/encryption-server/')
 
         self.proxy_timeout = int(conf.get('proxy_timeout', 10))
         self.recoverable_proxy_timeout = int(
@@ -175,7 +176,14 @@ class Application(object):
         except ForwardException as e:
             self.logger.exception(_('ERROR Failed to forward to swift proxy due to %s' % e.reason))
             return HTTPServerError(request=req)
-        except (Exception, Timeout) as e:
+        except EncryptedAccessException as e:
+            self.logger.exception(_('ERROR Failed to perform encrypted access with %s method'
+                                    'on %s due to %s' % (e.method, e.path, e.reason)))
+            return HTTPServerError(request=req)
+        except Timeout as e:
+            self.logger.exception(_('ERRoR Timeout due to %s' % e.exception))
+            return HTTPServerError(request=req)
+        except Exception as e:
             self.logger.exception(_('ERROR Unhandled exception in request'))
             return HTTPServerError(request=req)
 
