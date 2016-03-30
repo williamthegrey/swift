@@ -53,6 +53,8 @@ class AESCipher(object):
 
     def __init__(self, key=None):
         self.key = key
+        if not key:
+            self.new_key()
 
     def new_key(self):
         self.key = Random.new().read(AES.key_size[2])
@@ -72,82 +74,47 @@ class AESCipher(object):
         return cipher.decrypt(msg[AES.block_size:])
 
 
-def encrypt_sign(local_key_path, msg):
-    aes_cipher = AESCipher()
-    rsa_cipher = RSACipher(local_key_path)
+class CompositeCipher(object):
+    def __init__(self, local_key_path):
+        self.local_key_path = local_key_path
+        self.rsa_cipher = RSACipher(local_key_path)
+        self.aes_cipher = AESCipher()
 
-    aes_cipher.new_key()
-    key = rsa_cipher.encrypt(aes_cipher.key)
-    msg_enc = aes_cipher.encrypt(msg)
-    signature = rsa_cipher.sign(msg_enc)
+    def generate_key(self):
+        return self.rsa_cipher.encrypt(self.aes_cipher.key)
 
-    return {'msg': msg_enc, 'signature': signature, 'key': key}
+    def encrypt(self, msg, key=None):
+        if key:
+            self.aes_cipher.key = key
 
+        key = self.rsa_cipher.encrypt(self.aes_cipher.key)
+        msg_enc = self.aes_cipher.encrypt(msg)
 
-def verify_decrypt(local_key_path, msg, signature, key):
-    rsa_cipher = RSACipher(local_key_path)
-    aes_cipher = AESCipher()
+        return {'msg': msg_enc, 'key': key}
 
-    if rsa_cipher.verify(msg, signature):
-        aes_cipher.key = rsa_cipher.decrypt(key)
-        return aes_cipher.decrypt(msg)
-    else:
-        raise EncryptionException('The message is corrupted.')
+    def decrypt(self, msg, key):
+        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
 
+        return self.aes_cipher.decrypt(msg)
 
-def re_encrypt(local_key_path, key, ext_pub_key):
-    rsa_cipher = RSACipher(local_key_path)
+    def encrypt_sign(self, msg, key=None):
+        if key:
+            self.aes_cipher.key = key
 
-    return rsa_cipher.re_encrypt(key, ext_pub_key)
+        key = self.rsa_cipher.encrypt(self.aes_cipher.key)
+        msg_enc = self.aes_cipher.encrypt(msg)
+        signature = self.rsa_cipher.sign(msg_enc)
+
+        return {'msg': msg_enc, 'signature': signature, 'key': key}
+
+    def verify_decrypt(self, msg, signature, key):
+        if self.rsa_cipher.verify(msg, signature):
+            self.aes_cipher.key = self.rsa_cipher.decrypt(key)
+            return self.aes_cipher.decrypt(msg)
+        else:
+            raise EncryptionException('The message is corrupted.')
 
 
 class EncryptionException(Exception):
     def __init__(self, reason):
         self.reason = reason
-
-
-def encrypt(key, in_str):
-    """ Encrypts a file using AES (CBC mode) with the given key.
-        key:The encryption key - a string that must be
-            either 16, 24 or 32 bytes long. Longer keys
-            are more secure.
-    """
-    chunk_size = 64 * 1024
-    out_str = ""
-    #iv = ''.join(chr(random.randint(0, 0xFF)) for i in range(16))
-
-    # TODO: hard code
-    iv = '0123456789abcdef'
-    # hard code ends
-
-    encryptor = AES.new(key, AES.MODE_CBC, iv)
-    extra_space = 16 - len(in_str) % 16
-    if extra_space < 10:
-        extra_space = str(extra_space).rjust(2, '0')
-    out_str = out_str + str(extra_space) + iv
-    for chunk in _chunks(in_str, chunk_size, 0):
-        if len(chunk) == 0:
-            break
-        elif len(chunk) % 16 != 0:
-            chunk += ' ' * (16 - len(chunk) % 16)
-        out_str = out_str + encryptor.encrypt(chunk)
-    return out_str
-
-
-def decrypt(key, in_str):
-    chunk_size = 24 * 1024
-    out_str = ""
-    extra_space = int(in_str[0:2]) % 16
-    iv = in_str[2:18]
-    decryptor = AES.new(key, AES.MODE_CBC, iv)
-    for chunk in _chunks(in_str, chunk_size, 18):
-        if len(chunk) == 0:
-                break
-        out_str = out_str + decryptor.decrypt(chunk)
-        out_str = out_str[0:len(out_str)-extra_space]
-    return out_str
-
-
-def _chunks(s, n, st):
-    for start in range(st, len(s), n):
-        yield s[start:start+n]
