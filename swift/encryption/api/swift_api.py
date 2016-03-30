@@ -15,7 +15,7 @@ class Connection:
         self.conn_timeout = conn_timeout
         self.proxy_timeout = proxy_timeout
 
-    def head_container_meta_encrypted(self, path, token):
+    def head(self, path, token):
         environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
                    'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token,
                    'REQUEST_METHOD': 'HEAD'}
@@ -23,13 +23,22 @@ class Connection:
 
         res = get_working_response(req, self.conn_timeout, self.proxy_timeout)
 
-        encrypted = 'False'
-        if res:
-            encrypted = res.headers['X-Container-Meta-Encrypted']
-            if encrypted not in ('True', 'true'):
-                encrypted = 'False'
+        if not res:
+            raise SwiftException(req.method, req.path, 'Resource not found')
 
-        return encrypted
+        return res.headers
+
+    def get(self, path, token):
+        environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
+                   'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token}
+        req = Request.blank(path, environ=environ)
+
+        res = get_working_response(req, self.conn_timeout, self.proxy_timeout)
+
+        if not res:
+            raise SwiftException(req.method, req.path, 'Resource not found')
+
+        return res
 
 
 class SwiftException(Exception):

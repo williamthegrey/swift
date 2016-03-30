@@ -26,11 +26,8 @@ class Connection:
         if res:
             key = res.body
 
-        if not_null:
-            if not key:
+        if not_null and not key:
                 raise KmsException('No key was found')
-            elif len(key) != 32:
-                raise ValueError('Corrupted key')
 
         return key
 
@@ -51,6 +48,20 @@ class Connection:
                 raise KmsException('No key was found')
 
         return headers
+
+    def put_key(self, path, key, token):
+        environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
+                   'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token,
+                   'REQUEST_METHOD': 'PUT'}
+        req = Request.blank(path, environ=environ)
+        req.body = key
+
+        res = get_working_response(req, self.conn_timeout, self.kms_timeout)
+
+        if not res:
+            raise KmsException('Put key failed')
+
+        return res
 
 
 class KmsException(Exception):
