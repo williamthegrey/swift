@@ -83,14 +83,10 @@ class CompositeCipher(object):
     def generate_key(self):
         return self.rsa_cipher.encrypt(self.aes_cipher.key)
 
-    def encrypt(self, msg, key=None):
-        if key:
-            self.aes_cipher.key = key
+    def encrypt(self, msg, key):
+        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
 
-        key = self.rsa_cipher.encrypt(self.aes_cipher.key)
-        msg_enc = self.aes_cipher.encrypt(msg)
-
-        return {'msg': msg_enc, 'key': key}
+        return self.aes_cipher.encrypt(msg)
 
     def decrypt(self, msg, key):
         self.aes_cipher.key = self.rsa_cipher.decrypt(key)
