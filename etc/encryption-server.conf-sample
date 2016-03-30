@@ -1,6 +1,6 @@
 [DEFAULT]
 # bind_ip = 0.0.0.0
-bind_port = 8090
+bind_port = 8081
 # bind_timeout = 30
 # backlog = 4096
 # swift_dir = /etc/swift
@@ -76,9 +76,18 @@ bind_port = 8090
 # eventlet_debug = false
 
 [pipeline:main]
-pipeline = catch_errors gatekeeper healthcheck encryption-logging cache container_sync bulk tempurl ratelimit tempauth container-quotas account-quotas slo dlo encryption-logging encryption-server
+pipeline = catch_errors healthcheck cache authtoken keystoneauth encryption-server
 
 [app:encryption-server]
+proxy_host = swifthost
+proxy_port = 8080
+kms_host = kmshost
+kms_port = 8080
+proxy_timeout = 10
+kms_timeout = 5
+auth_timeout = 5
+conn_timeout = 0.5
+client_timeout = 60
 use = egg:swift#encryption
 # You can override the default log routing for this app here:
 # set log_name = encryption-server
