@@ -1,5 +1,4 @@
-__author__ = 'William'
-
+from swift.common.http import is_success
 from swift.common.swob import Request, Response
 from swift.encryption.utils.httputils import get_working_response
 
@@ -23,7 +22,7 @@ class Connection:
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
 
         key = None
-        if res:
+        if res and is_success(res.status_int):
             key = res.body
 
         if not_null and not key:
@@ -40,7 +39,7 @@ class Connection:
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
 
         headers = None
-        if res:
+        if res and is_success(res.status_int):
             headers = res.headers
 
         if not_null:
@@ -58,7 +57,7 @@ class Connection:
 
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
 
-        if not res:
+        if not res or not is_success(res.status_int):
             raise KmsException('Put key failed')
 
         return res

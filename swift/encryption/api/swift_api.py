@@ -1,5 +1,4 @@
-__author__ = 'William'
-
+from swift.common.http import is_success
 from swift.common.swob import Request, Response
 from swift.encryption.utils.httputils import get_working_response
 
@@ -23,7 +22,7 @@ class Connection:
 
         res = get_working_response(req, self.conn_timeout, self.proxy_timeout)
 
-        if not res:
+        if not res or not is_success(res.status_int):
             raise SwiftException(req.method, req.path, 'Resource not found')
 
         return res.headers
@@ -35,7 +34,7 @@ class Connection:
 
         res = get_working_response(req, self.conn_timeout, self.proxy_timeout)
 
-        if not res:
+        if not res or not is_success(res.status_int):
             raise SwiftException(req.method, req.path, 'Resource not found')
 
         return res

@@ -1,7 +1,7 @@
 from urllib import unquote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
-    redirected, path_encrypted
+    redirected, path_encrypted, EncryptedAccessException
 from base64 import urlsafe_b64decode as b64decode
 import functools
 import json
@@ -24,6 +24,8 @@ def container_body_decrypted(func):
         if controller.is_container_encrypted(req):
             # get encryption key
             key = controller.get_container_key(req)
+            if not key:
+                raise EncryptedAccessException(req.method, req.path, 'Not authorized')
 
             # decrypt response body
             res_format = req.params.get('format', 'plain')

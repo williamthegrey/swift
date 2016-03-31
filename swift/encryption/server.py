@@ -5,7 +5,7 @@ from time import time
 from swift import gettext_ as _
 from swift.common.swob import HTTPBadRequest, HTTPForbidden, \
     HTTPMethodNotAllowed, HTTPNotFound, HTTPPreconditionFailed, \
-    HTTPServerError, HTTPException, Request
+    HTTPServerError, HTTPException, HTTPRequestTimeout, HTTPServiceUnavailable, Request
 from swift.common.utils import get_logger, get_remote_client, split_path, generate_trans_id
 from swift.common.constraints import check_utf8
 from swift.encryption.controllers import AccountController, ContainerController, ObjectController
@@ -176,14 +176,14 @@ class Application(object):
             return error_response
         except ForwardException as e:
             self.logger.exception(_('ERROR Failed to forward to swift proxy due to %s' % e.reason))
-            return HTTPServerError(request=req)
+            return HTTPServiceUnavailable(request=req)
         except EncryptedAccessException as e:
             self.logger.exception(_('ERROR Failed to perform encrypted access with %s method'
                                     'on %s due to %s' % (e.method, e.path, e.reason)))
-            return HTTPServerError(request=req)
+            return HTTPForbidden(request=req)
         except Timeout as e:
             self.logger.exception(_('ERRoR Timeout due to %s' % e.exception))
-            return HTTPServerError(request=req)
+            return HTTPRequestTimeout(request=req)
         except Exception as e:
             self.logger.exception(_('ERROR Unhandled exception in request'))
             return HTTPServerError(request=req)
