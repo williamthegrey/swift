@@ -34,6 +34,7 @@ class Application(object):
         self.auth_timout = int(conf.get('auth_timeout', 5))
         self.conn_timeout = float(conf.get('conn_timeout', 0.5))
         self.client_timeout = int(conf.get('client_timeout', 60))
+        self.kms_prefix = conf.get('kms_prefix', None)
 
         self.deny_host_headers = [
             host.strip() for host in

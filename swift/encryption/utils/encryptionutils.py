@@ -12,15 +12,19 @@ class RSACipher(object):
         try:
             with open(self.local_key_path, 'r') as f:
                 self.key = RSA.importKey(f.read())
+                self.pub_key = self.key.publickey()
         except IOError:
             random_generator = Random.new().read
-            key = RSA.generate(2048, random_generator)
-            with open(self.local_key_path, 'w') as f:
-                f.write(key.exportKey('PEM'))
-                f.close()
-            self.key = key
+            self.key = RSA.generate(2048, random_generator)
+            self.pub_key = self.key.publickey()
 
-        self.pub_key = self.key.publickey()
+            self.register_key(self.pub_key)
+            with open(self.local_key_path, 'w') as f:
+                f.write(self.key.exportKey('PEM'))
+                f.close()
+
+    def register_key(self, pub_key):
+        pass
 
     def encrypt(self, msg):
         return self.pub_key.encrypt(msg, 32)
@@ -72,43 +76,6 @@ class AESCipher(object):
         cipher = AES.new(self.key, AES.MODE_CFB, iv)
 
         return cipher.decrypt(msg[AES.block_size:])
-
-
-class CompositeCipher(object):
-    def __init__(self, local_key_path):
-        self.local_key_path = local_key_path
-        self.rsa_cipher = RSACipher(local_key_path)
-        self.aes_cipher = AESCipher()
-
-    def generate_key(self):
-        return self.rsa_cipher.encrypt(self.aes_cipher.key)
-
-    def encrypt(self, msg, key):
-        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
-
-        return self.aes_cipher.encrypt(msg)
-
-    def decrypt(self, msg, key):
-        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
-
-        return self.aes_cipher.decrypt(msg)
-
-    def encrypt_sign(self, msg, key=None):
-        if key:
-            self.aes_cipher.key = key
-
-        key = self.rsa_cipher.encrypt(self.aes_cipher.key)
-        msg_enc = self.aes_cipher.encrypt(msg)
-        signature = self.rsa_cipher.sign(msg_enc)
-
-        return {'msg': msg_enc, 'signature': signature, 'key': key}
-
-    def verify_decrypt(self, msg, signature, key):
-        if self.rsa_cipher.verify(msg, signature):
-            self.aes_cipher.key = self.rsa_cipher.decrypt(key)
-            return self.aes_cipher.decrypt(msg)
-        else:
-            raise EncryptionException('The message is corrupted.')
 
 
 class EncryptionException(Exception):

@@ -2,7 +2,6 @@ from urllib import unquote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
     redirected, path_encrypted
-from swift.encryption.utils.encryptionutils import CompositeCipher
 from base64 import urlsafe_b64decode as b64decode
 import functools
 import json
@@ -32,8 +31,7 @@ def container_body_decrypted(func):
                 objects = json.loads(res.body)
                 for obj in objects:
                     obj_name = obj[u'name'].encode(res.charset)
-                    local_key_path = controller.get_local_key_path(req)
-                    cipher = CompositeCipher(local_key_path)
+                    cipher = controller.get_cipher(req)
                     obj_name = cipher.decrypt(b64decode(obj_name), key)
                     obj[u'name'] = unicode(obj_name, res.charset)
                 res.body = json.dumps(objects)
@@ -44,8 +42,7 @@ def container_body_decrypted(func):
                 objects = res.body.splitlines()
                 body_decrypted = ""
                 for obj in objects:
-                    local_key_path = controller.get_local_key_path(req)
-                    cipher = CompositeCipher(local_key_path)
+                    cipher = controller.get_cipher(req)
                     obj_decrypted = cipher.decrypt(b64decode(obj), key)
                     body_decrypted += obj_decrypted + '\n'
                 res.body = body_decrypted
@@ -97,8 +94,7 @@ class ContainerController(Controller):
 
         if 'HTTP_X_CONTAINER_META_ENCRYPTED' in req.environ \
                 and req.environ['HTTP_X_CONTAINER_META_ENCRYPTED'] in ('True', 'true'):
-            local_key_path = self.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = self.get_cipher(req)
             key = cipher.generate_key()
 
             self.put_container_key(req, key[0])

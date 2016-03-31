@@ -4,7 +4,6 @@ from urllib import unquote, quote
 from swift.common.utils import public
 from swift.encryption.controllers.base import Controller, delay_denial, \
     redirected, path_encrypted, EncryptedAccessException
-from swift.encryption.utils.encryptionutils import CompositeCipher
 from base64 import urlsafe_b64encode as b64encode
 import functools
 from swift.common.utils import split_path
@@ -23,8 +22,7 @@ def obj_body_encrypted(func):
 
         if controller.is_container_encrypted(req):
             # encrypt object
-            local_key_path = controller.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = controller.get_cipher(req)
             msg_dict = cipher.encrypt_sign(req.body)
             req.body = msg_dict['signature'] + msg_dict['msg']
 
@@ -55,8 +53,7 @@ def obj_body_decrypted(func):
             if not key:
                 raise EncryptedAccessException(req.method, req.path, 'Not authorized')
 
-            local_key_path = controller.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = controller.get_cipher(req)
             res.body = cipher.verify_decrypt(res.body[256:], res.body[0:256], key)
 
         return res
@@ -83,8 +80,7 @@ def destination_encrypted(func):
 
             # encrypt destination path
             destination_path_encrypted = container
-            local_key_path = controller.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = controller.get_cipher(req)
             obj = b64encode(cipher.encrypt(obj, key))
             destination_path_encrypted += '/' + obj
             destination_path_encrypted = quote(destination_path_encrypted)

@@ -1,6 +1,6 @@
 import inspect
 from urllib import unquote
-from swift.encryption.utils.encryptionutils import CompositeCipher
+from swift.encryption.utils.encryptionutils import AESCipher, RSACipher, EncryptionException
 from swift.common.utils import split_path
 from swift.encryption.utils.httputils import get_working_response
 import functools
@@ -94,8 +94,7 @@ def path_encrypted(func):
 
             # encrypt path
             path_info_encrypted = '/' + '/'.join([version, account, container])
-            local_key_path = controller.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = controller.get_cipher(req)
             obj = cipher.encrypt(obj, key)
             obj = b64encode(obj)
 
@@ -159,6 +158,9 @@ class Controller(object):
 
         return res
 
+    def get_cipher(self, req):
+        return ControllerCompositeCipher(self, req)
+
     def get_kms_api(self):
         kms_host = self.app.kms_host
         kms_port = self.app.kms_port
@@ -167,32 +169,32 @@ class Controller(object):
 
         return kms_api(kms_host, kms_port, conn_timeout, kms_timeout)
 
-    @staticmethod
-    def build_key_path(req, key_type):
+    def build_key_path(self, req, key_type):
         user_id = req.environ['HTTP_X_USER_ID']
 
         if key_type != 'user' and key_type != 'container' and key_type != 'object':
             return None
 
         path = unquote(req.path)
+
         if key_type == 'user':
-            version, account, container, obj = split_path(path, 2, 4, True)
-            key_path = '/' + '/'.join([version, account, user_id])
+            segment = 2
         elif key_type == 'container':
-            version, account, container, obj = split_path(path, 3, 4, True)
-            key_path = '/' + '/'.join([version, account, user_id, container])
+            segment = 3
         elif key_type == 'object':
-            version, account, container, obj = split_path(path, 4, 4, True)
-            key_path = '/' + '/'.join([version, account, user_id, container, obj])
+            segment = 4
         else:
-            key_path = None
+            return None
 
-        return key_path
+        version, account, container, obj = split_path(path, segment, 4, True)
+        fragment = [version, account]
+        if self.app.kms_prefix and self.app.kms_prefix != '':
+            fragment += [self.app.kms_prefix]
+            segment += 1
+        fragment += [user_id, container, obj]
+        segment += 1
 
-    def get_local_key_path(self, req):
-        user_id = req.environ['HTTP_X_USER_ID']
-        local_key_path = self.app.local_key_dir + user_id + '.pem'
-        return local_key_path
+        return '/' + '/'.join(fragment[0:segment])
 
     def get_key(self, req, key_type):
         kms_connection = self.get_kms_api()
@@ -251,13 +253,65 @@ class Controller(object):
         objects = res.body.splitlines()
         key = self.get_container_key(req)
         for obj_enc in objects:
-            local_key_path = self.get_local_key_path(req)
-            cipher = CompositeCipher(local_key_path)
+            cipher = self.get_cipher(req)
             obj_dec = cipher.decrypt(b64decode(obj_enc), key)
             if obj == obj_dec:
                 return obj_enc
 
         return obj_intended
+
+
+class ControllerCompositeCipher(object):
+    def __init__(self, controller, req):
+        self.rsa_cipher = ControllerRSACipher(controller, req)
+        self.aes_cipher = AESCipher()
+
+    def generate_key(self):
+        return self.rsa_cipher.encrypt(self.aes_cipher.key)
+
+    def encrypt(self, msg, key):
+        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
+
+        return self.aes_cipher.encrypt(msg)
+
+    def decrypt(self, msg, key):
+        self.aes_cipher.key = self.rsa_cipher.decrypt(key)
+
+        return self.aes_cipher.decrypt(msg)
+
+    def encrypt_sign(self, msg, key=None):
+        if key:
+            self.aes_cipher.key = key
+
+        key = self.rsa_cipher.encrypt(self.aes_cipher.key)
+        msg_enc = self.aes_cipher.encrypt(msg)
+        signature = self.rsa_cipher.sign(msg_enc)
+
+        return {'msg': msg_enc, 'signature': signature, 'key': key}
+
+    def verify_decrypt(self, msg, signature, key):
+        if self.rsa_cipher.verify(msg, signature):
+            self.aes_cipher.key = self.rsa_cipher.decrypt(key)
+            return self.aes_cipher.decrypt(msg)
+        else:
+            raise EncryptionException('The message is corrupted.')
+
+
+class ControllerRSACipher(RSACipher):
+
+    def __init__(self, controller, req):
+        self.controller = controller
+        self.req = req
+        self.local_key_path = self.get_local_key_path(req)
+        RSACipher.__init__(self, self.local_key_path)
+
+    def get_local_key_path(self, req):
+        user_id = req.environ['HTTP_X_USER_ID']
+        local_key_path = self.controller.app.local_key_dir + user_id + '.pem'
+        return local_key_path
+
+    def register_key(self, pub_key):
+        self.controller.put_user_key(self.req, pub_key.exportKey('PEM'))
 
 
 class ForwardException(Exception):
