@@ -40,10 +40,13 @@ class RSACipher(object):
 
         return signature
 
-    def verify(self, msg, signature):
+    def verify(self, msg, signature, ext_pub_key=None):
         h = SHA256.new()
         h.update(msg)
-        verifier = PKCS1_PSS.new(self.key)
+        if ext_pub_key:
+            verifier = PKCS1_PSS.new(ext_pub_key)
+        else:
+            verifier = PKCS1_PSS.new(self.key)
 
         return verifier.verify(h, signature)
 
