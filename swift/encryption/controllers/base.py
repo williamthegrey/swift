@@ -292,8 +292,8 @@ class ControllerCompositeCipher(object):
 
         return {'msg': msg_enc, 'signature': signature, 'key': key}
 
-    def verify_decrypt(self, msg, signature, key):
-        if self.rsa_cipher.verify(msg, signature):
+    def verify_decrypt(self, msg, signature, key, ext_pub_key=None):
+        if self.rsa_cipher.verify(msg, signature, ext_pub_key):
             self.aes_cipher.key = self.rsa_cipher.decrypt(key)
             return self.aes_cipher.decrypt(msg)
         else:
