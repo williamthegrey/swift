@@ -111,6 +111,9 @@ class ContainerController(Controller):
     def POST(self, req):
         """HTTP POST request handler."""
 
+        if 'HTTP_X_SHARED_USER_ID' in req.environ:
+            return self.share(req, 'container')
+
         res = self.forward_to_swift_proxy(req)
         return res
 

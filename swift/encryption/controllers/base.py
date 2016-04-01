@@ -8,6 +8,8 @@ from base64 import urlsafe_b64encode as b64encode, b64decode
 from swift.encryption.api.kms_api import kms_api
 from swift.encryption.api.swift_api import swift_api
 from eventlet.timeout import Timeout
+from Crypto.PublicKey import RSA
+from swift.common.swob import Response
 
 
 def delay_denial(func):
@@ -262,6 +264,32 @@ class Controller(object):
                 return obj_enc
 
         return obj_intended
+
+    def share(self, req, share_type):
+        ext_user_id = req.environ['HTTP_X_SHARED_USER_ID']
+        ext_pub_key = self.get_user_key(req, ext_user_id)
+        if share_type == 'container':
+            key = self.get_container_key(req)
+        elif share_type == 'object':
+            key = self.get_object_key(req)
+        else:
+            raise ValueError('Invalid sharing type')
+
+        cipher = self.get_cipher(req)
+        key_re_enc = cipher.rsa_cipher.re_encrypt(key, RSA.importKey(ext_pub_key))
+
+        if share_type == 'container':
+            self.put_container_key(req, key_re_enc[0], ext_user_id)
+        elif share_type == 'object':
+            self.put_object_key(req, key_re_enc[0], ext_user_id)
+        else:
+            raise ValueError('Invalid sharing type')
+
+        res = Response(request=req)
+        res.body = '<html><h1>Accepted</h1><p>The request is accepted for processing.</p></html>'
+        res.status = '202 Accepted'
+
+        return res
 
 
 class ControllerCompositeCipher(object):

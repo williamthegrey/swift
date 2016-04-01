@@ -7,6 +7,7 @@ from swift.encryption.controllers.base import Controller, delay_denial, \
 from base64 import urlsafe_b64encode as b64encode
 import functools
 from swift.common.utils import split_path
+from Crypto.PublicKey import RSA
 
 
 def obj_body_encrypted(func):
@@ -21,6 +22,8 @@ def obj_body_encrypted(func):
         (controller, req) = a
 
         if controller.is_container_encrypted(req):
+            # set object owner
+            req.environ['HTTP_X_OBJECT_META_OWNER'] = req.environ['HTTP_X_USER_ID']
             # encrypt object
             cipher = controller.get_cipher(req)
             msg_dict = cipher.encrypt_sign(req.body)
@@ -52,9 +55,15 @@ def obj_body_decrypted(func):
             key = controller.get_object_key(req)
             if not key:
                 raise EncryptedAccessException(req.method, req.path, 'Not authorized')
+            ext_pub_key = None
+            user_id = req.environ['HTTP_X_USER_ID']
+            if 'X-Object-Meta-Owner' in res.headers \
+                    and res.headers['X-Object-Meta-Owner'] != user_id:
+                ext_pub_key = controller.get_user_key(req, res.headers['X-Object-Meta-Owner'])
+                ext_pub_key = RSA.importKey(ext_pub_key)
 
             cipher = controller.get_cipher(req)
-            res.body = cipher.verify_decrypt(res.body[256:], res.body[0:256], key)
+            res.body = cipher.verify_decrypt(res.body[256:], res.body[0:256], key, ext_pub_key)
 
         return res
     return wrapped
@@ -169,6 +178,9 @@ class ObjectController(Controller):
     @path_encrypted
     def POST(self, req):
         """HTTP POST request handler."""
+
+        if 'HTTP_X_SHARED_USER_ID' in req.environ:
+            return self.share(req, 'object')
 
         res = self.forward_to_swift_proxy(req)
         return res
