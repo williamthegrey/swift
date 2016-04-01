@@ -1,4 +1,3 @@
-__author__ = 'William'
 from swift.common.bufferedhttp import http_connect_raw
 from eventlet.timeout import Timeout
 from swift.common.exceptions import ConnectionTimeout
