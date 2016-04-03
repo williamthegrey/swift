@@ -231,6 +231,51 @@ class Controller(object):
     def put_object_key(self, req, key, ext_user_id=None):
         return self.put_key(req, 'object', key, ext_user_id)
 
+    def head_key(self, req, key_type, ext_user_id=None):
+        kms_connection = self.get_kms_api()
+        key_path = self.build_key_path(req, key_type, ext_user_id)
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        return kms_connection.head_key(key_path, token)
+
+    def head_user_key(self, req, ext_user_id=None):
+        return self.head_key(req, 'user', ext_user_id)
+
+    def head_container_key(self, req, ext_user_id=None):
+        return self.head_key(req, 'container', ext_user_id)
+
+    def head_object_key(self, req, ext_user_id=None):
+        return self.head_key(req, 'object', ext_user_id)
+
+    def post_key(self, req, key_type, headers, ext_user_id=None):
+        kms_connection = self.get_kms_api()
+        key_path = self.build_key_path(req, key_type, ext_user_id)
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        return kms_connection.head_key(key_path, headers, token)
+
+    def post_user_key(self, req, headers, ext_user_id=None):
+        return self.post_key(req, 'user', headers, ext_user_id)
+
+    def post_container_key(self, req, headers, ext_user_id=None):
+        return self.post_key(req, 'container', headers, ext_user_id)
+
+    def post_object_key(self, req, headers, ext_user_id=None):
+        return self.post_key(req, 'object', headers, ext_user_id)
+
+    def delete_key(self, req, key_type, ext_user_id=None):
+        kms_connection = self.get_kms_api()
+        key_path = self.build_key_path(req, key_type, ext_user_id)
+        token = req.environ['HTTP_X_AUTH_TOKEN']
+        return kms_connection.head_key(key_path, token)
+
+    def delete_user_key(self, req, ext_user_id=None):
+        return self.delete_key(req, 'user', ext_user_id)
+
+    def delete_container_key(self, req, ext_user_id=None):
+        return self.delete_key(req, 'container', ext_user_id)
+
+    def delete_object_key(self, req, ext_user_id=None):
+        return self.delete_key(req, 'object', ext_user_id)
+
     def is_container_encrypted(self, req):
         swift_connection = swift_api(self.app.proxy_host, self.app.proxy_port,
                                      self.app.conn_timeout, self.app.proxy_timeout)
