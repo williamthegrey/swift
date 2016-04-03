@@ -62,6 +62,12 @@ class Connection:
 
         return res
 
+    def post_key(self, path, headers, token):
+        pass
+
+    def delete_key(self, path, token):
+        pass
+
 
 class KmsException(Exception):
     def __init__(self, reason):
