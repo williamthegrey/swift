@@ -10,6 +10,7 @@ from swift.common.utils import get_logger, get_remote_client, split_path, genera
 from swift.common.constraints import check_utf8
 from swift.encryption.controllers import AccountController, ContainerController, ObjectController
 from swift.encryption.controllers.base import ForwardException, EncryptedAccessException
+from swift.encryption.api.kms_api import KmsException
 
 
 class Application(object):
@@ -179,8 +180,11 @@ class Application(object):
             return HTTPServiceUnavailable(request=req)
         except EncryptedAccessException as e:
             self.logger.exception(_('ERROR Failed to perform encrypted access with %s method'
-                                    'on %s due to %s' % (e.method, e.path, e.reason)))
+                                    ' on %s due to %s' % (e.method, e.path, e.reason)))
             return HTTPForbidden(request=req)
+        except KmsException as e:
+            self.logger.exception(_('ERROR Failed to perform kms request with %s method'
+                                    ' on %s due to %s' % (e.method, e.path, e.reason)))
         except Timeout as e:
             self.logger.exception(_('ERRoR Timeout due to %s' % e.exception))
             return HTTPRequestTimeout(request=req)

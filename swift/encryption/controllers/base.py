@@ -201,20 +201,20 @@ class Controller(object):
 
         return '/' + '/'.join(fragment[0:segment])
 
-    def get_key(self, req, key_type, ext_user_id=None):
+    def get_key(self, req, key_type, ext_user_id=None, not_null=False):
         kms_connection = self.get_kms_api()
         key_path = self.build_key_path(req, key_type, ext_user_id)
         token = req.environ['HTTP_X_AUTH_TOKEN']
-        return kms_connection.get_key(key_path, token)
+        return kms_connection.get_key(key_path, token, not_null)
 
-    def get_user_key(self, req, ext_user_id=None):
-        return self.get_key(req, 'user', ext_user_id)
+    def get_user_key(self, req, ext_user_id=None, not_null=False):
+        return self.get_key(req, 'user', ext_user_id, not_null)
 
-    def get_container_key(self, req, ext_user_id=None):
-        return self.get_key(req, 'container', ext_user_id)
+    def get_container_key(self, req, ext_user_id=None, not_null=False):
+        return self.get_key(req, 'container', ext_user_id, not_null)
 
-    def get_object_key(self, req, ext_user_id=None):
-        return self.get_key(req, 'object', ext_user_id)
+    def get_object_key(self, req, ext_user_id=None, not_null=False):
+        return self.get_key(req, 'object', ext_user_id, not_null)
 
     def put_key(self, req, key_type, key, ext_user_id=None):
         kms_connection = self.get_kms_api()
@@ -231,20 +231,20 @@ class Controller(object):
     def put_object_key(self, req, key, ext_user_id=None):
         return self.put_key(req, 'object', key, ext_user_id)
 
-    def head_key(self, req, key_type, ext_user_id=None):
+    def head_key(self, req, key_type, ext_user_id=None, not_null=False):
         kms_connection = self.get_kms_api()
         key_path = self.build_key_path(req, key_type, ext_user_id)
         token = req.environ['HTTP_X_AUTH_TOKEN']
-        return kms_connection.head_key(key_path, token)
+        return kms_connection.head_key(key_path, token, not_null)
 
-    def head_user_key(self, req, ext_user_id=None):
-        return self.head_key(req, 'user', ext_user_id)
+    def head_user_key(self, req, ext_user_id=None, not_null=False):
+        return self.head_key(req, 'user', ext_user_id, not_null)
 
-    def head_container_key(self, req, ext_user_id=None):
-        return self.head_key(req, 'container', ext_user_id)
+    def head_container_key(self, req, ext_user_id=None, not_null=False):
+        return self.head_key(req, 'container', ext_user_id, not_null)
 
-    def head_object_key(self, req, ext_user_id=None):
-        return self.head_key(req, 'object', ext_user_id)
+    def head_object_key(self, req, ext_user_id=None, not_null=False):
+        return self.head_key(req, 'object', ext_user_id, not_null)
 
     def post_key(self, req, key_type, headers, ext_user_id=None):
         kms_connection = self.get_kms_api()
@@ -312,7 +312,7 @@ class Controller(object):
 
     def share(self, req, share_type):
         ext_user_id = req.environ['HTTP_X_SHARED_USER_ID']
-        ext_pub_key = self.get_user_key(req, ext_user_id)
+        ext_pub_key = self.get_user_key(req, ext_user_id, not_null=True)
         if share_type == 'container':
             key = self.get_container_key(req)
         elif share_type == 'object':

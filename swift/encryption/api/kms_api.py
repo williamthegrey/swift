@@ -26,7 +26,7 @@ class Connection:
             key = res.body
 
         if not_null and not key:
-                raise KmsException('No key was found')
+                raise KmsException(req.method, req.path, 'No key was found')
 
         return key
 
@@ -44,7 +44,7 @@ class Connection:
 
         if not_null:
             if not headers:
-                raise KmsException('No key was found')
+                raise KmsException(req.method, req.path, 'No key was found')
 
         return headers
 
@@ -58,7 +58,7 @@ class Connection:
         res = get_working_response(req, self.conn_timeout, self.kms_timeout)
 
         if not res or not is_success(res.status_int):
-            raise KmsException('Put key failed')
+            raise KmsException(req.method, req.path, 'Put key failed')
 
         return res
 
@@ -70,5 +70,7 @@ class Connection:
 
 
 class KmsException(Exception):
-    def __init__(self, reason):
+    def __init__(self, method, path, reason):
+        self.method = method
+        self.path = path
         self.reason = reason
