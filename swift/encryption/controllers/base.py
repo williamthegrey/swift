@@ -44,8 +44,12 @@ def redirected(func):
         proxy_port = app.proxy_port
 
         req = a[1]
-        remote_addr = req.environ['REMOTE_ADDR']
-        remote_port = req.environ['REMOTE_PORT']
+        remote_addr = None
+        if 'REMOTE_ADDR' in req.environ:
+            remote_addr = req.environ['REMOTE_ADDR']
+        remote_port = None
+        if 'REMOTE_PORT' in req.environ:
+            remote_port = req.environ['REMOTE_PORT']
         http_host = req.environ['HTTP_HOST']
         server_name = req.environ['SERVER_NAME']
         server_port = req.environ['SERVER_PORT']
@@ -62,8 +66,10 @@ def redirected(func):
         res = func(*a, **kw)
 
         # reset remote
-        res.environ['REMOTE_ADDR'] = remote_addr
-        req.environ['REMOTE_PORT'] = remote_port
+        if 'REMOTE_ADDR' in req.environ:
+            req.environ['REMOTE_ADDR'] = remote_addr
+        if 'REMOTE_PORT' in req.environ:
+            req.environ['REMOTE_PORT'] = remote_port
 
         # reset server
         req.environ['HTTP_HOST'] = http_host
