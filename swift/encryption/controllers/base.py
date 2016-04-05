@@ -4,7 +4,8 @@ from swift.encryption.utils.encryptionutils import AESCipher, RSACipher, Encrypt
 from swift.common.utils import split_path
 from swift.encryption.utils.httputils import get_working_response
 import functools
-from base64 import urlsafe_b64encode as b64encode, b64decode
+from base64 import urlsafe_b64encode as b64encode
+from base64 import urlsafe_b64decode as b64decode
 from swift.encryption.api.kms_api import kms_api
 from swift.encryption.api.swift_api import swift_api
 from eventlet.timeout import Timeout
