@@ -124,5 +124,9 @@ class ContainerController(Controller):
     def DELETE(self, req):
         """HTTP DELETE request handler."""
 
+        if self.is_container_encrypted(req):
+            # delete encryption key
+            self.delete_container_key(req)
+
         res = self.forward_to_swift_proxy(req)
         return res
