@@ -112,7 +112,7 @@ class TestEncryption(unittest.TestCase):
         # using encryption_url
         res = put(self.encryption_conn, self.kms_container)
         res.read()
-        self.assertEqual(res.status, 201)
+        self.assert_(res.status in (201, 202), res.status)
 
         res = get(self.encryption_conn, self.kms_container)
         res.read()
