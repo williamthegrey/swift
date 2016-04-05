@@ -66,7 +66,21 @@ class Connection:
         pass
 
     def delete_key(self, path, token):
-        pass
+        environ = {'SERVER_NAME': self.host, 'SERVER_PORT': self.port,
+                   'HTTP_HOST': self.host + ':' + self.port, 'HTTP_X_AUTH_TOKEN': token,
+                   'REQUEST_METHOD': 'DELETE'}
+        req = Request.blank(path, environ=environ)
+
+        res = get_working_response(req, self.conn_timeout, self.kms_timeout)
+
+        headers = None
+        if res and is_success(res.status_int):
+            headers = res.headers
+
+        if not res or not is_success(res.status_int):
+            raise KmsException(req.method, req.path, 'Delete key failed')
+
+        return res
 
 
 class KmsException(Exception):

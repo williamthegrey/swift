@@ -257,7 +257,7 @@ class Controller(object):
         kms_connection = self.get_kms_api()
         key_path = self.build_key_path(req, key_type, ext_user_id)
         token = req.environ['HTTP_X_AUTH_TOKEN']
-        return kms_connection.head_key(key_path, headers, token)
+        return kms_connection.post_key(key_path, headers, token)
 
     def post_user_key(self, req, headers, ext_user_id=None):
         return self.post_key(req, 'user', headers, ext_user_id)
@@ -272,7 +272,7 @@ class Controller(object):
         kms_connection = self.get_kms_api()
         key_path = self.build_key_path(req, key_type, ext_user_id)
         token = req.environ['HTTP_X_AUTH_TOKEN']
-        return kms_connection.head_key(key_path, token)
+        return kms_connection.delete_key(key_path, token)
 
     def delete_user_key(self, req, ext_user_id=None):
         return self.delete_key(req, 'user', ext_user_id)
