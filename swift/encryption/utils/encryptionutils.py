@@ -22,8 +22,12 @@ class RSACipher(object):
             with open(self.local_key_path, 'w') as f:
                 f.write(self.key.exportKey('PEM'))
                 f.close()
+        self.check_key(self.pub_key)
 
     def register_key(self, pub_key):
+        pass
+
+    def check_key(self, pub_key):
         pass
 
     def encrypt(self, msg):

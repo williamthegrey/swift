@@ -396,6 +396,11 @@ class ControllerRSACipher(RSACipher):
     def register_key(self, pub_key):
         self.controller.put_user_key(self.req, pub_key.exportKey('PEM'))
 
+    def check_key(self, pub_key):
+        key = self.controller.get_user_key(self.req)
+        if not key or key != pub_key.exportKey('PEM'):
+            self.register_key(pub_key)
+
 
 class ForwardException(Exception):
     def __init__(self, method, path, reason):
