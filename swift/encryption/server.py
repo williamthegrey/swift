@@ -133,6 +133,7 @@ class Application(object):
             self.logger.set_statsd_prefix('encryption-server.' +
                                           controller.server_type.lower())
             controller = controller(self, **path_parts)
+            controller.get_cipher(req)
             if 'swift.trans_id' not in req.environ:
                 # if this wasn't set by an earlier middleware, set it now
                 trans_id_suffix = self.trans_id_suffix

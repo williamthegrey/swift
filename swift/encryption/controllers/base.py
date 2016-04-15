@@ -146,6 +146,7 @@ class Controller(object):
         self.app = app
         self.trans_id = '-'
         self._allowed_methods = None
+        self.cipher = None
 
     @property
     def allowed_methods(self):
@@ -168,7 +169,10 @@ class Controller(object):
         return res
 
     def get_cipher(self, req):
-        return ControllerCompositeCipher(self, req)
+        if not self.cipher:
+            self.cipher = ControllerCompositeCipher(self, req)
+
+        return self.cipher
 
     def get_kms_api(self):
         kms_host = self.app.kms_host
